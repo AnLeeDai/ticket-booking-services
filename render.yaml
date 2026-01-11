@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: ticket-booking-services-be
+    env: docker
+    plan: free
+    autoDeploy: true
+    healthCheckPath: /up
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: APP_DEBUG
+        value: "false"
+      - key: LOG_CHANNEL
+        value: stack
+      # IMPORTANT: set APP_KEY + DB_* in Render dashboard (do not commit .env)
+      # Optional: run migrations on deploy
+      # - key: RUN_MIGRATIONS
+      #   value: "true"
