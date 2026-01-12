@@ -4,4 +4,4 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn() => view('welcome'));
 
-Route::get('/healthz', fn() => redirect('/up'));
+Route::get('/healthz', fn() => response('OK', 200));

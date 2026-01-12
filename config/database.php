@@ -59,7 +59,27 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => (function () {
+                    $ca = env('MYSQL_ATTR_SSL_CA');
+
+                    if (! is_string($ca) || $ca === '') {
+                        return null;
+                    }
+
+                    $ca = trim($ca, " \t\n\r\0\x0B\"");
+
+                    if ($ca === '') {
+                        return null;
+                    }
+
+                    $resolved = $ca;
+
+                    if (! preg_match('/^[A-Za-z]:\\\\/', $ca) && ! str_starts_with($ca, '/') && ! str_starts_with($ca, '\\')) {
+                        $resolved = base_path($ca);
+                    }
+
+                    return realpath($resolved) ?: $resolved;
+                })(),
             ]) : [],
         ],
 
