@@ -13,6 +13,9 @@ services:
       - key: LOG_CHANNEL
         value: stack
       # IMPORTANT: set APP_KEY + DB_* in Render dashboard (do not commit .env)
+      # Aiven MySQL typically requires TLS/SSL. Provide the CA cert via:
+      # - MYSQL_ATTR_SSL_CA: either a path inside the container (relative to repo) OR the full PEM content.
+      # - MYSQL_ATTR_SSL_VERIFY_SERVER_CERT: true/false (optional; defaults to true)
       # Optional: run migrations on deploy
       # - key: RUN_MIGRATIONS
       #   value: "true"

@@ -59,7 +59,7 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => (function () {
+                \PDO::MYSQL_ATTR_SSL_CA => (function () {
                     $ca = env('MYSQL_ATTR_SSL_CA');
 
                     if (! is_string($ca) || $ca === '') {
@@ -72,6 +72,20 @@ return [
                         return null;
                     }
 
+                    // Allow passing a PEM certificate via env var (Render secret),
+                    // not only a filesystem path.
+                    if (str_contains($ca, 'BEGIN CERTIFICATE')) {
+                        $targetPath = storage_path('app/mysql-ca.pem');
+
+                        if (! is_dir(dirname($targetPath))) {
+                            @mkdir(dirname($targetPath), 0775, true);
+                        }
+
+                        @file_put_contents($targetPath, $ca);
+
+                        return $targetPath;
+                    }
+
                     $resolved = $ca;
 
                     if (! preg_match('/^[A-Za-z]:\\\\/', $ca) && ! str_starts_with($ca, '/') && ! str_starts_with($ca, '\\')) {
@@ -80,6 +94,7 @@ return [
 
                     return realpath($resolved) ?: $resolved;
                 })(),
+                \PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', true),
             ]) : [],
         ],
 
@@ -99,7 +114,40 @@ return [
             'strict' => true,
             'engine' => null,
             'options' => extension_loaded('pdo_mysql') ? array_filter([
-                (PHP_VERSION_ID >= 80500 ? \Pdo\Mysql::ATTR_SSL_CA : \PDO::MYSQL_ATTR_SSL_CA) => env('MYSQL_ATTR_SSL_CA'),
+                \PDO::MYSQL_ATTR_SSL_CA => (function () {
+                    $ca = env('MYSQL_ATTR_SSL_CA');
+
+                    if (! is_string($ca) || $ca === '') {
+                        return null;
+                    }
+
+                    $ca = trim($ca, " \t\n\r\0\x0B\"");
+
+                    if ($ca === '') {
+                        return null;
+                    }
+
+                    if (str_contains($ca, 'BEGIN CERTIFICATE')) {
+                        $targetPath = storage_path('app/mysql-ca.pem');
+
+                        if (! is_dir(dirname($targetPath))) {
+                            @mkdir(dirname($targetPath), 0775, true);
+                        }
+
+                        @file_put_contents($targetPath, $ca);
+
+                        return $targetPath;
+                    }
+
+                    $resolved = $ca;
+
+                    if (! preg_match('/^[A-Za-z]:\\\\/', $ca) && ! str_starts_with($ca, '/') && ! str_starts_with($ca, '\\')) {
+                        $resolved = base_path($ca);
+                    }
+
+                    return realpath($resolved) ?: $resolved;
+                })(),
+                \PDO::MYSQL_ATTR_SSL_VERIFY_SERVER_CERT => env('MYSQL_ATTR_SSL_VERIFY_SERVER_CERT', true),
             ]) : [],
         ],
 
