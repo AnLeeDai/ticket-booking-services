@@ -2,9 +2,16 @@
 
 namespace App\Services;
 
+use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\ChangePasswordRequest;
+use App\Http\Requests\ResetPasswordRequest;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\PersonalAccessToken;
 use Laravel\Sanctum\TransientToken;
 
@@ -145,6 +152,124 @@ class AuthServices extends Services
             );
         } catch (\Throwable $e) {
             return $this->serverErrorResponse($e->getMessage());
+        }
+    }
+
+    public function sendEmail(
+        ForgotPasswordRequest $request
+    ) {
+        try {
+            $email = $request->validated()['email'];
+
+            $status = Password::sendResetLink(['email' => $email]);
+
+            if ($status === Password::RESET_LINK_SENT) {
+                return $this->successResponse(
+                    data: null,
+                    message: 'Đã gửi mã đặt lại mật khẩu đến email của bạn'
+                );
+            }
+
+            if ($status === Password::RESET_THROTTLED) {
+                return $this->errorResponse(
+                    message: 'Vui lòng đợi ít phút trước khi gửi lại mã',
+                    code: 429
+                );
+            }
+
+            return $this->errorResponse(
+                message: 'Không thể gửi mã đặt lại mật khẩu',
+                code: 400
+            );
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse(description: $e->getMessage());
+        }
+    }
+
+    public function reset(
+        ResetPasswordRequest $request
+    ) {
+        try {
+            $data = $request->validated();
+
+            $status = Password::reset(
+                [
+                    'email' => $data['email'],
+                    'password' => $data['password'],
+                    'token' => $data['token'],
+                ],
+                function ($user, $password) {
+                    $user->forceFill([
+                        'password' => $password,
+                        'remember_token' => Str::random(60),
+                    ])->save();
+
+                    $user->tokens()->delete();
+
+                    event(new PasswordReset($user));
+                }
+            );
+
+            if ($status === Password::PASSWORD_RESET) {
+                return $this->successResponse(
+                    data: null,
+                    message: 'Đặt lại mật khẩu thành công'
+                );
+            }
+
+            if ($status === Password::INVALID_TOKEN) {
+                return $this->errorResponse(
+                    message: 'Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn',
+                    code: 400
+                );
+            }
+
+            if ($status === Password::INVALID_USER) {
+                return $this->errorResponse(
+                    message: 'Email không tồn tại trong hệ thống',
+                    code: 404
+                );
+            }
+
+            return $this->errorResponse(
+                message: 'Không thể đặt lại mật khẩu',
+                code: 400
+            );
+
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse(description: $e->getMessage());
+        }
+    }
+
+    public function changePassword(
+        ChangePasswordRequest $request
+    ) {
+        try {
+            $user = $request->user('sanctum');
+
+            if (! $user) {
+                return $this->errorResponse('Chưa đăng nhập', 401);
+            }
+
+            $data = $request->validated();
+
+            if (! Hash::check($data['current_password'], $user->password)) {
+                return $this->errorResponse('Mật khẩu hiện tại không đúng', 400);
+            }
+
+            $user->forceFill([
+                'password' => $data['password'],
+                'remember_token' => Str::random(60),
+            ])->save();
+
+            $user->tokens()->delete();
+
+            return $this->successResponse(
+                data: null,
+                message: 'Đổi mật khẩu thành công'
+            );
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse(description: $e->getMessage());
         }
     }
 }
