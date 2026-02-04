@@ -35,12 +35,6 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        Schema::create('password_reset_tokens', function (Blueprint $table) {
-            $table->string('email')->primary()->comment('Địa chỉ email để đặt lại mật khẩu');
-            $table->string('token')->comment('Token để đặt lại mật khẩu');
-            $table->timestamp('created_at')->nullable();
-        });
-
         Schema::create('sessions', function (Blueprint $table) {
             $table->uuid('id')->primary()->comment('ID phiên làm việc');
             $table->foreignUuid('user_id')->nullable()->index()->constrained('users')->cascadeOnUpdate()->cascadeOnDelete()->comment('ID người dùng');
@@ -71,7 +65,6 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
     }
 };
