@@ -219,7 +219,7 @@ class AuthServices extends Services
     public function logoutDevice(Request $request, string $tokenId)
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
 
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
@@ -228,7 +228,7 @@ class AuthServices extends Services
             $token = $user->tokens()->where('id', $tokenId)->first();
 
             if (! $token) {
-                return $this->errorResponse('Thiết bị không tồn tại', 404);
+                return $this->errorResponse('Không tìm thấy thiết bị thuộc tài khoản của bạn', 404);
             }
 
             $deviceName = $token->name;

@@ -30,7 +30,7 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::post('logout-all-devices', [AuthController::class, 'logoutAll'])->middleware('auth:sanctum');
-    Route::post('logout/{deviceName}/device', [AuthController::class, 'logoutDevice'])->middleware('auth:sanctum');
+    Route::post('logout/{tokenId}/device', [AuthController::class, 'logoutDevice'])->middleware('auth:sanctum');
     Route::get('devices', [AuthController::class, 'getAllUserLoginDevices'])->middleware('auth:sanctum');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);

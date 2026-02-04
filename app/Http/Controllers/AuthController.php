@@ -36,9 +36,9 @@ class AuthController extends Controller
         return $this->authServices->logoutAll($request);
     }
 
-    public function logoutDevice(Request $request, string $deviceName)
+    public function logoutDevice(Request $request, string $tokenId)
     {
-        return $this->authServices->logoutDevice($request, $deviceName);
+        return $this->authServices->logoutDevice($request, $tokenId);
     }
 
     public function getAllUserLoginDevices(Request $request)
