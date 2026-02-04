@@ -5,10 +5,15 @@ namespace App\Services;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ResetPasswordRequest;
+use App\Models\Role;
+use App\Models\User;
+use App\Notifications\RegisterSuccessNotification;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Str;
@@ -48,6 +53,90 @@ class AuthServices extends Services
         } catch (\Throwable $e) {
             return $this->serverErrorResponse(description: $e->getMessage());
         }
+    }
+
+    public function register(RegisterRequest $request)
+    {
+        try {
+            $data = $request->validated();
+
+            $rawUsername = $data['username'] ?? null;
+            $username = $rawUsername;
+            if (! $username) {
+                $base = Str::before($data['email'], '@');
+                $base = Str::lower($base);
+                $base = preg_replace('/[^a-z0-9]+/', '_', $base);
+                $base = trim((string) $base, '_');
+                if ($base === '') {
+                    $base = 'user';
+                }
+
+                $username = $this->buildUniqueUsername($base);
+            }
+
+            $roleId = Role::query()
+                ->where('name', 'customer')
+                ->value('id');
+
+            if (! $roleId) {
+                return $this->errorResponse(
+                    message: 'Không tìm thấy role customer',
+                    code: 500
+                );
+            }
+
+            $user = DB::transaction(function () use ($data, $roleId, $username) {
+                return User::query()->create([
+                    'role_id' => $roleId,
+                    'full_name' => $data['full_name'],
+                    'username' => $username,
+                    'email' => $data['email'],
+                    'phone' => $data['phone'] ?? null,
+                    'address' => $data['address'] ?? null,
+                    'password' => Hash::make($data['password']),
+                ]);
+            });
+
+            $emailSent = true;
+            try {
+                $user->notify(new RegisterSuccessNotification);
+            } catch (\Throwable $e) {
+                $emailSent = false;
+                report($e);
+            }
+
+            $user->load('role');
+
+            return $this->successResponse(
+                data: [
+                    'user' => $user,
+                    'email_sent' => $emailSent,
+                ],
+                message: $emailSent
+                    ? 'Đăng ký tài khoản thành công'
+                    : 'Đăng ký tài khoản thành công, nhưng không thể gửi email'
+            );
+        } catch (\Throwable $e) {
+            return $this->serverErrorResponse(description: $e->getMessage());
+        }
+    }
+
+    private function buildUniqueUsername(string $base): string
+    {
+        $maxLength = 50;
+        $base = substr($base, 0, $maxLength);
+
+        $candidate = $base;
+        $suffix = 1;
+
+        while (User::query()->where('username', $candidate)->exists()) {
+            $suffixText = '-'.$suffix;
+            $trimLength = $maxLength - strlen($suffixText);
+            $candidate = substr($base, 0, max(1, $trimLength)).$suffixText;
+            $suffix++;
+        }
+
+        return $candidate;
     }
 
     public function allUserLoginDevices(Request $request)
@@ -144,7 +233,7 @@ class AuthServices extends Services
 
             $deviceName = $token->name;
 
-            $token->delete();
+            $user->tokens()->where('id', $tokenId)->delete();
 
             return $this->successResponse(
                 null,

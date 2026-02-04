@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ForgotPasswordRequest;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Requests\ChangePasswordRequest;
 use App\Http\Requests\ResetPasswordRequest;
 use App\Services\AuthServices;
@@ -18,6 +19,11 @@ class AuthController extends Controller
     public function login(LoginRequest $request)
     {
         return $this->authServices->checkUser($request);
+    }
+
+    public function register(RegisterRequest $request)
+    {
+        return $this->authServices->register($request);
     }
 
     public function logout(Request $request)

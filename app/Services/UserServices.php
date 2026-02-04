@@ -24,6 +24,7 @@ class UserServices extends Services
             return [
                 'token_type' => 'Bearer',
                 'access_token' => $token,
+                'role' => $user->role?->name,
             ];
         } catch (\Throwable $e) {
             return $this->serverErrorResponse(description: $e->getMessage());
