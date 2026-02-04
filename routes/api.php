@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\MovieController;
+use App\Http\Controllers\Admin\MovieController as AdminMovieController;
 use Illuminate\Support\Facades\Route;
 
 // test role and permission (employee, admin, customer)
@@ -30,9 +32,20 @@ Route::group(['prefix' => 'auth'], function () {
     Route::post('register', [AuthController::class, 'register']);
     Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
     Route::post('logout-all-devices', [AuthController::class, 'logoutAll'])->middleware('auth:sanctum');
-    Route::post('logout/{deviceName}/device', [AuthController::class, 'logoutDevice'])->middleware('auth:sanctum');
+    Route::post('logout/{tokenId}/device', [AuthController::class, 'logoutDevice'])
+        ->middleware('auth:sanctum')
+        ->whereUuid('tokenId');
     Route::get('devices', [AuthController::class, 'getAllUserLoginDevices'])->middleware('auth:sanctum');
     Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
     Route::post('reset-password', [AuthController::class, 'resetPassword']);
     Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
+});
+
+Route::get('movies', [MovieController::class, 'index']);
+Route::get('movies/{movie}', [MovieController::class, 'show']);
+
+Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::post('movies', [AdminMovieController::class, 'store']);
+    Route::delete('movies/{movie}', [AdminMovieController::class, 'destroy']);
+    Route::delete('movies', [AdminMovieController::class, 'bulkDestroy']);
 });

@@ -142,7 +142,7 @@ class AuthServices extends Services
     public function allUserLoginDevices(Request $request)
     {
         try {
-            $user = $request->user('sanctum');
+            $user = $request->user();
 
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
@@ -228,12 +228,12 @@ class AuthServices extends Services
             $token = $user->tokens()->where('id', $tokenId)->first();
 
             if (! $token) {
-                return $this->errorResponse('Thiết bị không tồn tại', 404);
+                return $this->errorResponse('Không tìm thấy token đăng nhập', 404);
             }
 
             $deviceName = $token->name;
 
-            $user->tokens()->where('id', $tokenId)->delete();
+            $token->delete();
 
             return $this->successResponse(
                 null,
