@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\MovieController;
+use App\Http\Controllers\Admin\GenreController as AdminGenreController;
 use App\Http\Controllers\Admin\MovieController as AdminMovieController;
 use Illuminate\Support\Facades\Route;
 
@@ -45,6 +46,12 @@ Route::get('movies', [MovieController::class, 'index']);
 Route::get('movies/{movie}', [MovieController::class, 'show']);
 
 Route::prefix('admin')->middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::get('genres', [AdminGenreController::class, 'index']);
+    Route::post('genres', [AdminGenreController::class, 'store']);
+    Route::get('genres/{genre}', [AdminGenreController::class, 'show']);
+    Route::put('genres/{genre}', [AdminGenreController::class, 'update']);
+    Route::patch('genres/{genre}/toggle', [AdminGenreController::class, 'toggle']);
+
     Route::post('movies', [AdminMovieController::class, 'store']);
     Route::delete('movies/{movie}', [AdminMovieController::class, 'destroy']);
     Route::delete('movies', [AdminMovieController::class, 'bulkDestroy']);
