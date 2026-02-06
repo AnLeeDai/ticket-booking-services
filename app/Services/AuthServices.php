@@ -26,76 +26,58 @@ class AuthServices extends Services
         protected UserServices $userServices
     ) {}
 
-    public function checkUser(LoginRequest $request)
+    /**
+     * Đăng nhập.
+     */
+    public function login(LoginRequest $request)
     {
-        try {
+        return $this->tryCatch(function () use ($request) {
             $data = $request->validated();
 
             if (! Auth::attempt([
                 'email' => $data['email'],
                 'password' => $data['password'],
             ])) {
-                return $this->errorResponse(
-                    message: 'Thông tin đăng nhập không chính xác',
-                    code: 401
-                );
+                return $this->errorResponse(message: 'Thông tin đăng nhập không chính xác', code: 401);
             }
 
             $user = Auth::user();
-
             $deviceName = $data['device_name'] ?? 'api';
             $tokenData = $this->userServices->createToken($user, $deviceName);
 
-            return $this->successResponse(
-                data: $tokenData,
-                message: 'Đăng nhập thành công'
-            );
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+            return $this->successResponse(data: $tokenData, message: 'Đăng nhập thành công');
+        });
     }
 
+    /**
+     * Đăng ký tài khoản.
+     */
     public function register(RegisterRequest $request)
     {
-        try {
+        return $this->tryCatch(function () use ($request) {
             $data = $request->validated();
 
-            $rawUsername = $data['username'] ?? null;
-            $username = $rawUsername;
+            $username = $data['username'] ?? null;
             if (! $username) {
-                $base = Str::before($data['email'], '@');
-                $base = Str::lower($base);
-                $base = preg_replace('/[^a-z0-9]+/', '_', $base);
-                $base = trim((string) $base, '_');
-                if ($base === '') {
-                    $base = 'user';
-                }
-
-                $username = $this->buildUniqueUsername($base);
+                $base = Str::lower(preg_replace('/[^a-z0-9]+/', '_', Str::before($data['email'], '@')) ?: 'user');
+                $username = $this->buildUniqueUsername(trim($base, '_'));
             }
 
-            $roleId = Role::query()
-                ->where('name', 'customer')
-                ->value('id');
+            $roleId = Role::query()->where('name', 'customer')->value('id');
 
             if (! $roleId) {
-                return $this->errorResponse(
-                    message: 'Không tìm thấy role customer',
-                    code: 500
-                );
+                return $this->errorResponse(message: 'Không tìm thấy role customer', code: 500);
             }
 
-            $user = DB::transaction(function () use ($data, $roleId, $username) {
-                return User::query()->create([
-                    'role_id' => $roleId,
-                    'full_name' => $data['full_name'],
-                    'username' => $username,
-                    'email' => $data['email'],
-                    'phone' => $data['phone'] ?? null,
-                    'address' => $data['address'] ?? null,
-                    'password' => Hash::make($data['password']),
-                ]);
-            });
+            $user = DB::transaction(fn () => User::query()->create([
+                'role_id' => $roleId,
+                'full_name' => $data['full_name'],
+                'username' => $username,
+                'email' => $data['email'],
+                'phone' => $data['phone'] ?? null,
+                'address' => $data['address'] ?? null,
+                'password' => Hash::make($data['password']),
+            ]));
 
             $emailSent = true;
             try {
@@ -108,42 +90,37 @@ class AuthServices extends Services
             $user->load('role');
 
             return $this->successResponse(
-                data: [
-                    'user' => $user,
-                    'email_sent' => $emailSent,
-                ],
+                data: ['user' => $user, 'email_sent' => $emailSent],
                 message: $emailSent
                     ? 'Đăng ký tài khoản thành công'
                     : 'Đăng ký tài khoản thành công, nhưng không thể gửi email'
             );
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+        });
     }
 
     private function buildUniqueUsername(string $base): string
     {
         $maxLength = 50;
         $base = substr($base, 0, $maxLength);
-
         $candidate = $base;
         $suffix = 1;
 
         while (User::query()->where('username', $candidate)->exists()) {
             $suffixText = '-'.$suffix;
-            $trimLength = $maxLength - strlen($suffixText);
-            $candidate = substr($base, 0, max(1, $trimLength)).$suffixText;
+            $candidate = substr($base, 0, max(1, $maxLength - strlen($suffixText))).$suffixText;
             $suffix++;
         }
 
         return $candidate;
     }
 
-    public function allUserLoginDevices(Request $request)
+    /**
+     * Danh sách thiết bị đang đăng nhập.
+     */
+    public function getDevices(Request $request)
     {
-        try {
-            $user = $request->user('sanctum');
-
+        return $this->tryCatch(function () use ($request) {
+            $user = $this->getAuthUser($request);
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
             }
@@ -155,28 +132,26 @@ class AuthServices extends Services
                 ->orderByDesc('last_used_at')
                 ->orderByDesc('created_at')
                 ->get()
-                ->map(function ($t) use ($currentTokenId) {
-                    return [
-                        'id' => (string) $t->id,
-                        'device_name' => $t->name,
-                        'last_used_at' => $t->last_used_at?->toDateTimeString(),
-                        'expires_at' => $t->expires_at?->toDateTimeString(),
-                        'created_at' => $t->created_at?->toDateTimeString(),
-                        'is_current' => (string) $t->id === (string) $currentTokenId,
-                    ];
-                });
+                ->map(fn ($t) => [
+                    'id' => (string) $t->id,
+                    'device_name' => $t->name,
+                    'last_used_at' => $t->last_used_at?->toDateTimeString(),
+                    'expires_at' => $t->expires_at?->toDateTimeString(),
+                    'created_at' => $t->created_at?->toDateTimeString(),
+                    'is_current' => (string) $t->id === (string) $currentTokenId,
+                ]);
 
             return $this->successResponse($tokens, 'Danh sách thiết bị đăng nhập');
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse($e->getMessage());
-        }
+        });
     }
 
+    /**
+     * Đăng xuất thiết bị hiện tại.
+     */
     public function logout(Request $request)
     {
-        try {
-            $user = $request->user('sanctum');
-
+        return $this->tryCatch(function () use ($request) {
+            $user = $this->getAuthUser($request);
             if (! $user) {
                 return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
@@ -184,26 +159,22 @@ class AuthServices extends Services
             $token = $user->currentAccessToken();
 
             if (! $token || $token instanceof TransientToken) {
-                return $this->errorResponse(
-                    message: 'Bạn phải gửi Authorization: Bearer <token>',
-                    code: 401
-                );
+                return $this->errorResponse(message: 'Bạn phải gửi Authorization: Bearer <token>', code: 401);
             }
 
-            PersonalAccessToken::query()
-                ->where('id', $token->id)
-                ->delete();
+            PersonalAccessToken::query()->where('id', $token->id)->delete();
 
             return $this->successResponse(data: null, message: 'Đăng xuất thành công');
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+        });
     }
 
+    /**
+     * Đăng xuất tất cả thiết bị.
+     */
     public function logoutAll(Request $request)
     {
-        try {
-            $user = $request->user('sanctum');
+        return $this->tryCatch(function () use ($request) {
+            $user = $this->getAuthUser($request);
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
             }
@@ -211,16 +182,16 @@ class AuthServices extends Services
             $user->tokens()->delete();
 
             return $this->successResponse(null, 'Đăng xuất tất cả thiết bị thành công');
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+        });
     }
 
+    /**
+     * Đăng xuất theo thiết bị.
+     */
     public function logoutDevice(Request $request, string $tokenId)
     {
-        try {
-            $user = $request->user('sanctum');
-
+        return $this->tryCatch(function () use ($request, $tokenId) {
+            $user = $this->getAuthUser($request);
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
             }
@@ -232,61 +203,38 @@ class AuthServices extends Services
             }
 
             $deviceName = $token->name;
+            $token->delete();
 
-            $user->tokens()->where('id', $tokenId)->delete();
-
-            return $this->successResponse(
-                null,
-                "Đăng xuất thiết bị {$deviceName} thành công"
-            );
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse($e->getMessage());
-        }
+            return $this->successResponse(null, "Đăng xuất thiết bị {$deviceName} thành công");
+        });
     }
 
-    public function sendEmail(
-        ForgotPasswordRequest $request
-    ) {
-        try {
-            $email = $request->validated()['email'];
+    /**
+     * Gửi email đặt lại mật khẩu.
+     */
+    public function forgotPassword(ForgotPasswordRequest $request)
+    {
+        return $this->tryCatch(function () use ($request) {
+            $status = Password::sendResetLink(['email' => $request->validated()['email']]);
 
-            $status = Password::sendResetLink(['email' => $email]);
-
-            if ($status === Password::RESET_LINK_SENT) {
-                return $this->successResponse(
-                    data: null,
-                    message: 'Đã gửi mã đặt lại mật khẩu đến email của bạn'
-                );
-            }
-
-            if ($status === Password::RESET_THROTTLED) {
-                return $this->errorResponse(
-                    message: 'Vui lòng đợi ít phút trước khi gửi lại mã',
-                    code: 429
-                );
-            }
-
-            return $this->errorResponse(
-                message: 'Không thể gửi mã đặt lại mật khẩu',
-                code: 400
-            );
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+            return match ($status) {
+                Password::RESET_LINK_SENT => $this->successResponse(data: null, message: 'Đã gửi mã đặt lại mật khẩu đến email của bạn'),
+                Password::RESET_THROTTLED => $this->errorResponse(message: 'Vui lòng đợi ít phút trước khi gửi lại mã', code: 429),
+                default => $this->errorResponse(message: 'Không thể gửi mã đặt lại mật khẩu'),
+            };
+        });
     }
 
-    public function reset(
-        ResetPasswordRequest $request
-    ) {
-        try {
+    /**
+     * Đặt lại mật khẩu.
+     */
+    public function resetPassword(ResetPasswordRequest $request)
+    {
+        return $this->tryCatch(function () use ($request) {
             $data = $request->validated();
 
             $status = Password::reset(
-                [
-                    'email' => $data['email'],
-                    'password' => $data['password'],
-                    'token' => $data['token'],
-                ],
+                ['email' => $data['email'], 'password' => $data['password'], 'token' => $data['token']],
                 function ($user, $password) {
                     $user->forceFill([
                         'password' => $password,
@@ -294,48 +242,26 @@ class AuthServices extends Services
                     ])->save();
 
                     $user->tokens()->delete();
-
                     event(new PasswordReset($user));
                 }
             );
 
-            if ($status === Password::PASSWORD_RESET) {
-                return $this->successResponse(
-                    data: null,
-                    message: 'Đặt lại mật khẩu thành công'
-                );
-            }
-
-            if ($status === Password::INVALID_TOKEN) {
-                return $this->errorResponse(
-                    message: 'Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn',
-                    code: 400
-                );
-            }
-
-            if ($status === Password::INVALID_USER) {
-                return $this->errorResponse(
-                    message: 'Email không tồn tại trong hệ thống',
-                    code: 404
-                );
-            }
-
-            return $this->errorResponse(
-                message: 'Không thể đặt lại mật khẩu',
-                code: 400
-            );
-
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+            return match ($status) {
+                Password::PASSWORD_RESET => $this->successResponse(data: null, message: 'Đặt lại mật khẩu thành công'),
+                Password::INVALID_TOKEN => $this->errorResponse(message: 'Mã đặt lại mật khẩu không hợp lệ hoặc đã hết hạn'),
+                Password::INVALID_USER => $this->errorResponse(message: 'Email không tồn tại trong hệ thống', code: 404),
+                default => $this->errorResponse(message: 'Không thể đặt lại mật khẩu'),
+            };
+        });
     }
 
-    public function changePassword(
-        ChangePasswordRequest $request
-    ) {
-        try {
-            $user = $request->user('sanctum');
-
+    /**
+     * Đổi mật khẩu.
+     */
+    public function changePassword(ChangePasswordRequest $request)
+    {
+        return $this->tryCatch(function () use ($request) {
+            $user = $this->getAuthUser($request);
             if (! $user) {
                 return $this->errorResponse('Chưa đăng nhập', 401);
             }
@@ -343,7 +269,7 @@ class AuthServices extends Services
             $data = $request->validated();
 
             if (! Hash::check($data['current_password'], $user->password)) {
-                return $this->errorResponse('Mật khẩu hiện tại không đúng', 400);
+                return $this->errorResponse('Mật khẩu hiện tại không đúng');
             }
 
             $user->forceFill([
@@ -353,12 +279,15 @@ class AuthServices extends Services
 
             $user->tokens()->delete();
 
-            return $this->successResponse(
-                data: null,
-                message: 'Đổi mật khẩu thành công'
-            );
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
-        }
+            return $this->successResponse(data: null, message: 'Đổi mật khẩu thành công');
+        });
+    }
+
+    /**
+     * Helper: lấy user đang đăng nhập.
+     */
+    private function getAuthUser(Request $request)
+    {
+        return $request->user('sanctum');
     }
 }

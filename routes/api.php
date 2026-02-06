@@ -1,38 +1,32 @@
 <?php
 
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CategoryController;
 use Illuminate\Support\Facades\Route;
 
-// test role and permission (employee, admin, customer)
-Route::middleware(['auth:sanctum', 'role:admin'])->get('demo/admin', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'Admin truy cập được',
-    ]);
-});
+// public
+Route::post('login', [AuthController::class, 'login']);
+Route::post('register', [AuthController::class, 'register']);
+Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+Route::post('reset-password', [AuthController::class, 'resetPassword']);
 
-Route::middleware(['auth:sanctum', 'role:employee,admin'])->get('demo/employee', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'Employee và admin truy cập được',
-    ]);
-});
-
-Route::middleware(['auth:sanctum', 'role:customer'])->get('demo/customer', function () {
-    return response()->json([
-        'success' => true,
-        'message' => 'Customer truy cập được',
-    ]);
-});
-
+// private
 Route::group(['prefix' => 'auth'], function () {
-    Route::post('login', [AuthController::class, 'login']);
-    Route::post('register', [AuthController::class, 'register']);
-    Route::post('logout', [AuthController::class, 'logout'])->middleware('auth:sanctum');
-    Route::post('logout-all-devices', [AuthController::class, 'logoutAll'])->middleware('auth:sanctum');
-    Route::post('logout/{deviceName}/device', [AuthController::class, 'logoutDevice'])->middleware('auth:sanctum');
-    Route::get('devices', [AuthController::class, 'getAllUserLoginDevices'])->middleware('auth:sanctum');
-    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-    Route::post('reset-password', [AuthController::class, 'resetPassword']);
-    Route::post('change-password', [AuthController::class, 'changePassword'])->middleware('auth:sanctum');
+    Route::middleware('auth:sanctum')->group(function () {
+        Route::post('logout', [AuthController::class, 'logout']);
+        Route::post('logout-all-devices', [AuthController::class, 'logoutAll']);
+        Route::post('logout/{tokenId}/device', [AuthController::class, 'logoutDevice']);
+        Route::get('devices', [AuthController::class, 'devices']);
+        Route::post('change-password', [AuthController::class, 'changePassword']);
+    });
+});
+
+Route::group(['prefix' => 'categories'], function () {
+    Route::get('/', [CategoryController::class, 'index']);
+    Route::get('/{id}', [CategoryController::class, 'show']);
+
+    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::post('/', [CategoryController::class, 'store']);
+        Route::put('/{id}', [CategoryController::class, 'update']);
+    });
 });
