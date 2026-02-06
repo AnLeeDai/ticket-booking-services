@@ -69,10 +69,9 @@ class CategoryServices extends Services
      */
     public function update(UpdateCategoryRequest $request, string $id)
     {
-        if (! $id) 
-            {
+        if (! $id) {
             return $this->errorResponse(message: 'ID danh mục không hợp lệ');
-            }
+        }
 
         $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
 
@@ -99,5 +98,4 @@ class CategoryServices extends Services
             notFoundMessage: 'Không tìm thấy danh mục',
         );
     }
-
 }

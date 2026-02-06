@@ -32,5 +32,4 @@ class CategoryController extends Controller
     {
         return $this->categoryServices->update($request, $id);
     }
-
 }

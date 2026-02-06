@@ -18,8 +18,8 @@ class RegisterSuccessNotification extends Notification
             ->subject('Đăng ký tài khoản thành công')
             ->greeting('Xin chào,')
             ->line('Tài khoản của bạn đã được tạo thành công.')
-            ->line('Tên đăng nhập: ' . $notifiable->username)
-            ->line('Email: ' . $notifiable->email)
+            ->line('Tên đăng nhập: '.$notifiable->username)
+            ->line('Email: '.$notifiable->email)
             ->line('Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.')
             ->salutation('Trân trọng,');
     }
