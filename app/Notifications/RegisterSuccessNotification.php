@@ -15,12 +15,12 @@ class RegisterSuccessNotification extends Notification
     public function toMail(object $notifiable): MailMessage
     {
         return (new MailMessage)
-            ->subject('Dang ky tai khoan thanh cong')
-            ->greeting('Xin chao,')
-            ->line('Tai khoan cua ban da duoc tao thanh cong.')
-            ->line('Ten dang nhap: ' . $notifiable->username)
-            ->line('Email: ' . $notifiable->email)
-            ->line('Neu ban khong thuc hien dang ky, vui long lien he ho tro ngay.')
-            ->salutation('Tran trong,');
+            ->subject('Đăng ký tài khoản thành công')
+            ->greeting('Xin chào,')
+            ->line('Tài khoản của bạn đã được tạo thành công.')
+            ->line('Tên đăng nhập: '.$notifiable->username)
+            ->line('Email: '.$notifiable->email)
+            ->line('Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.')
+            ->salutation('Trân trọng,');
     }
 }

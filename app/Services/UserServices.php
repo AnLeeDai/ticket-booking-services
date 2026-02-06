@@ -10,24 +10,23 @@ class UserServices extends Services
         protected User $userModel
     ) {}
 
+    /**
+     * Tạo token cho user, xoá token cũ cùng thiết bị.
+     */
     public function createToken(User $user, string $deviceName = 'api')
     {
-        try {
-            $user->tokens()->where('name', $deviceName)->delete();
+        $user->tokens()->where('name', $deviceName)->delete();
 
-            $token = $user->createToken($deviceName)->plainTextToken;
+        $token = $user->createToken($deviceName)->plainTextToken;
 
-            if (! $token) {
-                return $this->errorResponse('Không thể tạo token cho người dùng', 500);
-            }
-
-            return [
-                'token_type' => 'Bearer',
-                'access_token' => $token,
-                'role' => $user->role?->name,
-            ];
-        } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
+        if (! $token) {
+            return $this->errorResponse('Không thể tạo token cho người dùng', 500);
         }
+
+        return [
+            'token_type' => 'Bearer',
+            'access_token' => $token,
+            'role' => $user->role?->name,
+        ];
     }
 }
