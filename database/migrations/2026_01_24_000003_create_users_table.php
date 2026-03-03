@@ -7,7 +7,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-return new class extends Migration {
+return new class extends Migration
+{
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -65,11 +66,11 @@ return new class extends Migration {
 
         $data = collect($accounts)->map(function ($role) use ($roles, $phones) {
             return [
-                'user_id' => (string)Str::uuid(),
+                'user_id' => (string) Str::uuid(),
                 'role_id' => $roles[$role],
-                'user_name' => $role . '_account',
-                'full_name' => ucfirst($role) . ' Account',
-                'email' => $role . '@ticketbooking.com',
+                'user_name' => $role.'_account',
+                'full_name' => ucfirst($role).' Account',
+                'email' => $role.'@ticketbooking.com',
                 'password' => Hash::make('Password@123'),
                 'phone' => $phones[$role],
                 'dob' => null,

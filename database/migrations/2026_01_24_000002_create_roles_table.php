@@ -6,7 +6,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 
-return new class extends Migration {
+return new class extends Migration
+{
     /**
      * Run the migrations.
      */
@@ -20,10 +21,10 @@ return new class extends Migration {
         });
 
         DB::table('roles')->upsert([
-            ['role_id' => (string)Str::uuid(), 'name' => 'admin', 'description' => 'Quản trị viên hệ thống', 'created_at' => now(), 'updated_at' => now()],
-            ['role_id' => (string)Str::uuid(), 'name' => 'manager', 'description' => 'Quản lý', 'created_at' => now(), 'updated_at' => now()],
-            ['role_id' => (string)Str::uuid(), 'name' => 'employee', 'description' => 'Nhân viên', 'created_at' => now(), 'updated_at' => now()],
-            ['role_id' => (string)Str::uuid(), 'name' => 'customer', 'description' => 'Khách hàng', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'admin', 'description' => 'Quản trị viên hệ thống', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'manager', 'description' => 'Quản lý', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'employee', 'description' => 'Nhân viên', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'customer', 'description' => 'Khách hàng', 'created_at' => now(), 'updated_at' => now()],
         ], ['name'], ['description', 'updated_at']);
     }
 
