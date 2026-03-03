@@ -9,29 +9,27 @@ use Illuminate\Support\Str;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->uuid('id')->primary()->comment('ID người dùng');
-            $table->uuid('role_id')
-                ->comment('ID vai trò của người dùng');
+            $table->uuid('user_id')->primary()->comment('ID người dùng');
+            $table->uuid('role_id')->comment('ID vai trò của người dùng');
             $table->foreign('role_id')
-                ->references('id')
+                ->references('role_id')
                 ->on('roles')
                 ->cascadeOnUpdate()
                 ->cascadeOnDelete();
-            $table->string('full_name')->comment('Đầy đủ họ tên người dùng');
-            $table->string('username')->unique()->index()->comment('Tên đăng nhập của người dùng');
-            $table->string('email')->unique()->index()->comment('Địa chỉ email của người dùng');
-            $table->string('phone')->nullable()->unique()->comment('Số điện thoại của người dùng');
-            $table->string('address')->nullable()->comment('Địa chỉ của người dùng');
-            $table->string('avatar_url')->nullable()->comment('Ảnh đại diện của người dùng');
-            $table->timestamp('email_verified_at')->nullable()->comment('Thời gian xác minh email');
-            $table->string('password')->comment('Mật khẩu đã được mã hóa của người dùng');
-            $table->rememberToken()->comment('Token để ghi nhớ phiên đăng nhập');
+            $table->string('user_name')->unique()->index()->comment('Tên đăng nhập');
+            $table->string('full_name')->comment('Họ tên đầy đủ');
+            $table->string('email')->unique()->index()->comment('Email');
+            $table->string('password')->comment('Mật khẩu đã mã hóa');
+            $table->string('phone')->nullable()->unique()->comment('Số điện thoại');
+            $table->date('dob')->nullable()->comment('Ngày sinh');
+            $table->string('address')->nullable()->comment('Địa chỉ');
+            $table->string('avatar_url')->nullable()->comment('Ảnh đại diện');
+            $table->enum('status', ['IN_ACTIVE', 'UN_ACTIVE'])
+                ->default('IN_ACTIVE')
+                ->comment('Trạng thái');
             $table->timestamps();
         });
 
@@ -43,35 +41,58 @@ return new class extends Migration
 
         Schema::create('sessions', function (Blueprint $table) {
             $table->uuid('id')->primary()->comment('ID phiên làm việc');
-            $table->foreignUuid('user_id')->nullable()->index()->constrained('users')->cascadeOnUpdate()->cascadeOnDelete()->comment('ID người dùng');
+            $table->uuid('user_id')->nullable()->index()->comment('ID người dùng');
+            $table->foreign('user_id')
+                ->references('user_id')
+                ->on('users')
+                ->cascadeOnUpdate()
+                ->cascadeOnDelete();
             $table->string('ip_address', 45)->nullable()->comment('Địa chỉ IP');
             $table->text('user_agent')->nullable()->comment('User agent');
             $table->longText('payload')->comment('Dữ liệu phiên làm việc');
             $table->integer('last_activity')->index()->comment('Thời gian hoạt động cuối cùng');
         });
 
-        DB::table('users')->upsert([
-            'id' => (string) Str::uuid(),
-            'role_id' => DB::table('roles')->where('name', 'admin')->value('id'),
-            'full_name' => 'System Administrator',
-            'username' => 'ticketbooking2002',
-            'email' => 'ticketbooking2002@gmail.com',
-            'phone' => '0334920373',
-            'address' => 'Đống Đa, Hà Nội, Việt Nam',
-            'avatar_url' => null,
-            'password' => Hash::make('Ticketbooking2002@'),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ], ['email'], ['full_name', 'username', 'password', 'updated_at']);
+        $accounts = ['admin', 'manager', 'employee', 'customer'];
+
+        $roles = DB::table('roles')->pluck('role_id', 'name')->toArray();
+
+        $phones = [
+            'admin' => '0900000001',
+            'manager' => '0900000002',
+            'employee' => '0900000003',
+            'customer' => '0900000004',
+        ];
+
+        $data = collect($accounts)->map(function ($role) use ($roles, $phones) {
+            return [
+                'user_id' => (string) Str::uuid(),
+                'role_id' => $roles[$role],
+                'user_name' => $role.'_account',
+                'full_name' => ucfirst($role).' Account',
+                'email' => $role.'@ticketbooking.com',
+                'password' => Hash::make('Password@123'),
+                'phone' => $phones[$role],
+                'dob' => null,
+                'address' => 'Hà Nội',
+                'avatar_url' => null,
+                'status' => 'IN_ACTIVE',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        })->toArray();
+
+        DB::table('users')->upsert(
+            $data,
+            ['email'],
+            ['role_id', 'user_name', 'full_name', 'phone', 'password', 'dob', 'address', 'avatar_url', 'status', 'updated_at']
+        );
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

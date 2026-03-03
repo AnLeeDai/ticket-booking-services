@@ -14,16 +14,17 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('roles', function (Blueprint $table) {
-            $table->uuid('id')->primary()->comment('ID vai trò');
-            $table->enum('name', ['admin', 'employee', 'customer'])->unique()->comment('Tên vai trò');
+            $table->uuid('role_id')->primary()->comment('ID vai trò');
+            $table->string('name', 50)->unique()->comment('Tên vai trò: admin, manager, employee, customer');
             $table->string('description')->nullable()->comment('Mô tả vai trò');
             $table->timestamps();
         });
 
         DB::table('roles')->upsert([
-            ['id' => (string) Str::uuid(), 'name' => 'admin', 'description' => 'Quản trị viên hệ thống', 'created_at' => now(), 'updated_at' => now()],
-            ['id' => (string) Str::uuid(), 'name' => 'employee', 'description' => 'Nhân viên', 'created_at' => now(), 'updated_at' => now()],
-            ['id' => (string) Str::uuid(), 'name' => 'customer', 'description' => 'Khách hàng', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'admin', 'description' => 'Quản trị viên hệ thống', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'manager', 'description' => 'Quản lý', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'employee', 'description' => 'Nhân viên', 'created_at' => now(), 'updated_at' => now()],
+            ['role_id' => (string) Str::uuid(), 'name' => 'customer', 'description' => 'Khách hàng', 'created_at' => now(), 'updated_at' => now()],
         ], ['name'], ['description', 'updated_at']);
     }
 

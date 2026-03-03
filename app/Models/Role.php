@@ -9,6 +9,8 @@ class Role extends Model
 {
     use HasUuids;
 
+    protected $primaryKey = 'role_id';
+
     protected $keyType = 'string';
 
     public $incrementing = false;

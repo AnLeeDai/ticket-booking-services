@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\User;
+use Illuminate\Support\Facades\Auth;
 
 class UserServices extends Services
 {
@@ -10,9 +11,6 @@ class UserServices extends Services
         protected User $userModel
     ) {}
 
-    /**
-     * Tạo token cho user, xoá token cũ cùng thiết bị.
-     */
     public function createToken(User $user, string $deviceName = 'api')
     {
         $user->tokens()->where('name', $deviceName)->delete();
@@ -28,5 +26,15 @@ class UserServices extends Services
             'access_token' => $token,
             'role' => $user->role?->name,
         ];
+    }
+
+    public function findAllUsers()
+    {
+        return $this->userModel->simplePaginate(10);
+    }
+
+    public function me()
+    {
+        return Auth::user();
     }
 }

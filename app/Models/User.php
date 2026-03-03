@@ -16,9 +16,13 @@ class User extends Authenticatable
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasApiTokens, HasFactory, HasUuids, Notifiable;
 
+    protected $primaryKey = 'user_id';
+
     protected $keyType = 'string';
 
     public $incrementing = false;
+
+    protected $with = ['role'];
 
     /**
      * The attributes that are mass assignable.
@@ -28,11 +32,13 @@ class User extends Authenticatable
     protected $fillable = [
         'role_id',
         'full_name',
-        'username',
+        'user_name',
         'email',
         'phone',
+        'dob',
         'address',
         'avatar_url',
+        'status',
         'password',
     ];
 
@@ -44,6 +50,7 @@ class User extends Authenticatable
     protected $hidden = [
         'password',
         'remember_token',
+        'role_id',
     ];
 
     /**
@@ -55,13 +62,14 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'dob' => 'date',
             'password' => 'hashed',
         ];
     }
 
     public function role(): BelongsTo
     {
-        return $this->belongsTo(Role::class);
+        return $this->belongsTo(Role::class, 'role_id', 'role_id');
     }
 
     public function sendPasswordResetNotification($token): void
