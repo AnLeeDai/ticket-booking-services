@@ -57,13 +57,13 @@ class AuthServices extends Services
         return $this->tryCatch(function () use ($request) {
             $data = $request->validated();
 
-            $username = $data['username'] ?? null;
+            $username = $data['user_name'] ?? null;
             if (! $username) {
                 $base = Str::lower(preg_replace('/[^a-z0-9]+/', '_', Str::before($data['email'], '@')) ?: 'user');
                 $username = $this->buildUniqueUsername(trim($base, '_'));
             }
 
-            $roleId = Role::query()->where('name', 'customer')->value('id');
+            $roleId = Role::query()->where('name', 'customer')->value('role_id');
 
             if (! $roleId) {
                 return $this->errorResponse(message: 'Không tìm thấy role customer', code: 500);
@@ -72,7 +72,7 @@ class AuthServices extends Services
             $user = DB::transaction(fn () => User::query()->create([
                 'role_id' => $roleId,
                 'full_name' => $data['full_name'],
-                'username' => $username,
+                'user_name' => $username,
                 'email' => $data['email'],
                 'phone' => $data['phone'] ?? null,
                 'address' => $data['address'] ?? null,
@@ -105,7 +105,7 @@ class AuthServices extends Services
         $candidate = $base;
         $suffix = 1;
 
-        while (User::query()->where('username', $candidate)->exists()) {
+        while (User::query()->where('user_name', $candidate)->exists()) {
             $suffixText = '-'.$suffix;
             $candidate = substr($base, 0, max(1, $maxLength - strlen($suffixText))).$suffixText;
             $suffix++;
