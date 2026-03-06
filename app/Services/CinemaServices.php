@@ -48,7 +48,7 @@ class CinemaServices extends Services
         return $this->createRecord(
             model: $this->cinemaModel,
             data: array_merge($request->validated(), [
-                'code'   => $this->generateCode(),
+                'code' => $this->generateCode(),
                 'active' => $request->active ?? 'IN_ACTIVE',
             ]),
             message: 'Tạo rạp chiếu thành công',
@@ -90,7 +90,7 @@ class CinemaServices extends Services
     private function generateCode(): string
     {
         $count = $this->cinemaModel->count() + 1;
-        $code  = sprintf('CN-%06d', $count);
+        $code = sprintf('CN-%06d', $count);
 
         while ($this->cinemaModel->where('code', $code)->exists()) {
             $count++;
