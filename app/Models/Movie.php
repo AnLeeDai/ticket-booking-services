@@ -36,11 +36,11 @@ class Movie extends Model
 
     protected $casts = [
         'release_date' => 'date',
-        'end_date'     => 'date',
-        'rating'       => 'decimal:1',
-        'duration'     => 'integer',
-        'age'          => 'integer',
-        'gallery'      => 'array',
+        'end_date' => 'date',
+        'rating' => 'decimal:1',
+        'duration' => 'integer',
+        'age' => 'integer',
+        'gallery' => 'array',
     ];
 
     public function categories(): BelongsToMany

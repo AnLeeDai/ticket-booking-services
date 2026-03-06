@@ -3,9 +3,8 @@
 namespace App\Services;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
-use App\Services\Services;
+use Illuminate\Support\Facades\Auth;
 
 class UserServices extends Services
 {

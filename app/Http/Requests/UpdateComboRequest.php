@@ -17,7 +17,7 @@ class UpdateComboRequest extends FormRequest
         $comboId = $this->route('id');
 
         return [
-            'name'  => ['sometimes', 'required', 'string', 'max:255', Rule::unique('combos', 'name')->ignore($comboId, 'combo_id')],
+            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('combos', 'name')->ignore($comboId, 'combo_id')],
             'price' => 'nullable|numeric|min:0',
             'stock' => 'nullable|integer|min:0',
         ];
@@ -27,12 +27,12 @@ class UpdateComboRequest extends FormRequest
     {
         return [
             'name.required' => 'Tên combo không được để trống',
-            'name.max'      => 'Tên combo không được vượt quá 255 ký tự',
-            'name.unique'   => 'Tên combo đã tồn tại',
+            'name.max' => 'Tên combo không được vượt quá 255 ký tự',
+            'name.unique' => 'Tên combo đã tồn tại',
             'price.numeric' => 'Giá combo phải là số',
-            'price.min'     => 'Giá combo không được âm',
+            'price.min' => 'Giá combo không được âm',
             'stock.integer' => 'Số lượng tồn kho phải là số nguyên',
-            'stock.min'     => 'Số lượng tồn kho không được âm',
+            'stock.min' => 'Số lượng tồn kho không được âm',
         ];
     }
 }
