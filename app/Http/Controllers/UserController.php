@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Services\UserServices;
+use Illuminate\Http\Request;
 
 class UserController extends Controller
 {
@@ -10,9 +11,9 @@ class UserController extends Controller
         protected UserServices $userServices
     ) {}
 
-    public function index()
+    public function index(Request $request)
     {
-        return $this->userServices->findAllUsers();
+        return $this->userServices->findAllUsers($request);
     }
 
     public function profile()

@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Request;
+use App\Services\Services;
 
 class UserServices extends Services
 {
@@ -28,9 +30,15 @@ class UserServices extends Services
         ];
     }
 
-    public function findAllUsers()
+    public function findAllUsers(Request $request)
     {
-        return $this->userModel->simplePaginate(10);
+        return $this->filterAndPaginate(
+            query: $this->userModel,
+            request: $request,
+            searchableFields: [],
+            sortableFields: [],
+            message: 'Lấy danh sách người dùng thành công',
+        );
     }
 
     public function me()

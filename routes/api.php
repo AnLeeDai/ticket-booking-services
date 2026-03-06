@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CategoryController;
+use App\Http\Controllers\ComboController;
+use App\Http\Controllers\MovieController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -39,5 +41,27 @@ Route::group(['prefix' => 'categories'], function () {
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::post('/', [CategoryController::class, 'store']);
         Route::put('/{id}', [CategoryController::class, 'update']);
+    });
+});
+
+Route::group(['prefix' => 'movies'], function () {
+    Route::get('/', [MovieController::class, 'index']);
+    Route::get('/{id}', [MovieController::class, 'show']);
+
+    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::post('/', [MovieController::class, 'store']);
+        Route::put('/{id}', [MovieController::class, 'update']);
+        // Route::delete('/{id}', [MovieController::class, 'destroy']);
+    });
+});
+
+Route::group(['prefix' => 'combos'], function () {
+    Route::get('/', [ComboController::class, 'index']);
+    Route::get('/{id}', [ComboController::class, 'show']);
+
+    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+        Route::post('/', [ComboController::class, 'store']);
+        Route::put('/{id}', [ComboController::class, 'update']);
+        Route::delete('/{id}', [ComboController::class, 'destroy']);
     });
 });
