@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class UpdateCinemaSaleRequest extends FormRequest
 {
@@ -21,7 +22,7 @@ class UpdateCinemaSaleRequest extends FormRequest
                 'sometimes',
                 'required',
                 'date',
-                \Illuminate\Validation\Rule::unique('cinemas_sales')->where(function ($query) {
+                Rule::unique('cinemas_sales')->where(function ($query) {
                     return $query->where('cinema_id', $this->cinema_id ?? $this->route('cinema_id'));
                 })->ignore($saleId, 'cinema_sale_id'),
             ],

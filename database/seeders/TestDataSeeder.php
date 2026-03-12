@@ -52,7 +52,7 @@ class TestDataSeeder extends Seeder
                 'full_name' => "Nhân viên {$i}",
                 'email' => "employee{$i}@ticketbooking.com",
                 'password' => $password,
-                'phone' => "09200000" . str_pad($i, 2, '0', STR_PAD_LEFT),
+                'phone' => '09200000'.str_pad($i, 2, '0', STR_PAD_LEFT),
                 'address' => 'Hà Nội',
                 'status' => 'IN_ACTIVE',
             ]);
@@ -66,7 +66,7 @@ class TestDataSeeder extends Seeder
                 'full_name' => "Khách hàng {$i}",
                 'email' => "customer{$i}@ticketbooking.com",
                 'password' => $password,
-                'phone' => "09300000" . str_pad($i, 2, '0', STR_PAD_LEFT),
+                'phone' => '09300000'.str_pad($i, 2, '0', STR_PAD_LEFT),
                 'address' => ['TP.HCM', 'Hà Nội', 'Đà Nẵng', 'Cần Thơ'][$i % 4],
                 'status' => $i <= 18 ? 'IN_ACTIVE' : 'UN_ACTIVE',
             ]);
@@ -140,8 +140,8 @@ class TestDataSeeder extends Seeder
                 'code' => sprintf('MOV-%06d', $movieCodeCounter++),
                 'slug' => Str::slug($data['name']),
                 'description' => "Phim {$data['title']} - phim hay nhất năm 2026",
-                'thumb_url' => 'https://example.com/thumb/' . Str::slug($data['name']) . '.jpg',
-                'trailer_url' => 'https://example.com/trailer/' . Str::slug($data['name']) . '.mp4',
+                'thumb_url' => 'https://example.com/thumb/'.Str::slug($data['name']).'.jpg',
+                'trailer_url' => 'https://example.com/trailer/'.Str::slug($data['name']).'.mp4',
                 'gender_id' => $categories[$catIds[0]]->id,
             ]));
 
@@ -194,8 +194,8 @@ class TestDataSeeder extends Seeder
                     $showtimes[] = Showtime::create([
                         'cinema_id' => $cinema->cinema_id,
                         'movie_id' => $movie->movie_id,
-                        'starts_at' => $day->format('Y-m-d') . " {$slot[0]}:00",
-                        'ends_at' => $day->format('Y-m-d') . " {$slot[1]}:00",
+                        'starts_at' => $day->format('Y-m-d')." {$slot[0]}:00",
+                        'ends_at' => $day->format('Y-m-d')." {$slot[1]}:00",
                         'screen_type' => $slotIdx === 0 ? '2D' : '3D',
                     ]);
                 }
@@ -212,7 +212,7 @@ class TestDataSeeder extends Seeder
             foreach ($seatTypes as $sIdx => $type) {
                 $seats[] = Seat::create([
                     'showtime_id' => $showtime->showtime_id,
-                    'seat_code' => $row . ($sIdx + 1),
+                    'seat_code' => $row.($sIdx + 1),
                     'seat_type' => $type,
                     'price' => $seatPrices[$sIdx],
                     'active' => 'IN_ACTIVE',
@@ -271,11 +271,11 @@ class TestDataSeeder extends Seeder
         }
 
         $this->command->info('Test data seeded successfully!');
-        $this->command->info("  - 5 managers, 10 employee users, 20 customers");
-        $this->command->info("  - 5 cinemas (each with manager)");
-        $this->command->info("  - 7 categories, 8 movies, 5 combos");
-        $this->command->info("  - 10 employees (2 per cinema), 10 salaries");
-        $this->command->info("  - 30 showtimes, 240 seats, 40 tickets, 40 payments");
-        $this->command->info("  - 35 cinema sale records");
+        $this->command->info('  - 5 managers, 10 employee users, 20 customers');
+        $this->command->info('  - 5 cinemas (each with manager)');
+        $this->command->info('  - 7 categories, 8 movies, 5 combos');
+        $this->command->info('  - 10 employees (2 per cinema), 10 salaries');
+        $this->command->info('  - 30 showtimes, 240 seats, 40 tickets, 40 payments');
+        $this->command->info('  - 35 cinema sale records');
     }
 }

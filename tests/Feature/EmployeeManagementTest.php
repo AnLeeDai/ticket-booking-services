@@ -481,7 +481,7 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
-        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Helper ' . uniqid(), 'location' => 'HCM']);
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Helper '.uniqid(), 'location' => 'HCM']);
         $cinemaId = $cinemaRes->json('data.cinema_id');
 
         $empUser = User::create([

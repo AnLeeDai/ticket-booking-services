@@ -761,13 +761,13 @@ class RbacManagerScopingTest extends TestCase
     {
         Sanctum::actingAs($this->admin);
 
-        $catRes = $this->postJson('/api/categories', ['name' => 'Cat ' . uniqid()]);
+        $catRes = $this->postJson('/api/categories', ['name' => 'Cat '.uniqid()]);
         $categoryId = $catRes->json('data.id');
 
         $movieRes = $this->postJson('/api/movies', [
             'category_ids' => [$categoryId],
-            'title' => 'Movie ' . uniqid(),
-            'name' => 'Movie ' . uniqid(),
+            'title' => 'Movie '.uniqid(),
+            'name' => 'Movie '.uniqid(),
             'thumb_url' => 'https://example.com/thumb.jpg',
             'trailer_url' => 'https://example.com/trailer.mp4',
             'duration' => 120,

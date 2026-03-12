@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class CreateCinemaSaleRequest extends FormRequest
 {
@@ -18,7 +19,7 @@ class CreateCinemaSaleRequest extends FormRequest
             'sale_date' => [
                 'required',
                 'date',
-                \Illuminate\Validation\Rule::unique('cinemas_sales')->where(function ($query) {
+                Rule::unique('cinemas_sales')->where(function ($query) {
                     return $query->where('cinema_id', $this->cinema_id);
                 }),
             ],
