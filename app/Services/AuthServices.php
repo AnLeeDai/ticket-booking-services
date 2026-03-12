@@ -42,6 +42,13 @@ class AuthServices extends Services
             }
 
             $user = Auth::user();
+
+            if ($user->status === 'UN_ACTIVE') {
+                Auth::guard('web')->logout();
+
+                return $this->errorResponse(message: 'Tài khoản đã bị khoá', code: 403);
+            }
+
             $deviceName = $data['device_name'] ?? 'api';
             $tokenData = $this->userServices->createToken($user, $deviceName);
 

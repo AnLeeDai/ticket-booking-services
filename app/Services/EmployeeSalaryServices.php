@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Http\Requests\CreateEmployeeSalaryRequest;
 use App\Http\Requests\UpdateEmployeeSalaryRequest;
+use App\Models\Employee;
 use App\Models\EmployeeSalary;
 use Illuminate\Http\Request;
 
@@ -18,10 +19,18 @@ class EmployeeSalaryServices extends Services
      */
     public function getAll(Request $request)
     {
+        $query = $this->employeeSalaryModel->with([
+            'employee:employee_id,name,code,cinema_id',
+            'employee.cinema:cinema_id,code,name',
+        ]);
+
+        $cinemaIds = $this->getManagedCinemaIds($request);
+        if ($cinemaIds !== null) {
+            $query->whereHas('employee', fn ($q) => $q->whereIn('cinema_id', $cinemaIds));
+        }
+
         return $this->filterAndPaginate(
-            query: $this->employeeSalaryModel->with([
-                'employee:employee_id,name,code',
-            ]),
+            query: $query,
             request: $request,
             searchableFields: ['bank_name', 'bank_number'],
             sortableFields: ['net_salary', 'total_earn', 'payment_status', 'created_at'],
@@ -32,15 +41,24 @@ class EmployeeSalaryServices extends Services
     /**
      * Lấy chi tiết bảng lương theo ID.
      */
-    public function getById(string $id)
+    public function getById(Request $request, string $id)
     {
-        return $this->findById(
-            model: $this->employeeSalaryModel,
-            id: $id,
-            relations: ['employee:employee_id,name,code'],
-            message: 'Lấy thông tin bảng lương thành công',
-            notFoundMessage: 'Không tìm thấy bảng lương',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $salary = $this->employeeSalaryModel->with([
+                'employee:employee_id,name,code,cinema_id',
+                'employee.cinema:cinema_id,code,name',
+            ])->find($id);
+
+            if (! $salary) {
+                return $this->errorResponse(message: 'Không tìm thấy bảng lương', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $salary->employee?->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền xem bảng lương này', code: 403);
+            }
+
+            return $this->successResponse(data: $salary, message: 'Lấy thông tin bảng lương thành công');
+        });
     }
 
     /**
@@ -48,9 +66,16 @@ class EmployeeSalaryServices extends Services
      */
     public function store(CreateEmployeeSalaryRequest $request)
     {
+        $data = $request->validated();
+        $employee = Employee::find($data['employee_id']);
+
+        if ($employee && ! $this->canAccessCinema($request, $employee->cinema_id)) {
+            return $this->errorResponse(message: 'Không có quyền tạo bảng lương cho nhân viên này', code: 403);
+        }
+
         return $this->createRecord(
             model: $this->employeeSalaryModel,
-            data: $request->validated(),
+            data: $data,
             message: 'Tạo bảng lương thành công',
             failMessage: 'Tạo bảng lương thất bại',
         );
@@ -61,25 +86,42 @@ class EmployeeSalaryServices extends Services
      */
     public function update(UpdateEmployeeSalaryRequest $request, string $id)
     {
-        return $this->updateRecord(
-            model: $this->employeeSalaryModel,
-            id: $id,
-            data: array_filter($request->validated(), fn ($v) => ! is_null($v)),
-            message: 'Cập nhật bảng lương thành công',
-            notFoundMessage: 'Không tìm thấy bảng lương',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $salary = $this->employeeSalaryModel->with('employee:employee_id,cinema_id')->find($id);
+
+            if (! $salary) {
+                return $this->errorResponse(message: 'Không tìm thấy bảng lương', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $salary->employee?->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền cập nhật bảng lương này', code: 403);
+            }
+
+            $salary->update(array_filter($request->validated(), fn ($v) => ! is_null($v)));
+
+            return $this->successResponse(data: $salary->fresh(), message: 'Cập nhật bảng lương thành công');
+        });
     }
 
     /**
      * Xoá bảng lương theo ID.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->deleteRecord(
-            model: $this->employeeSalaryModel,
-            id: $id,
-            message: 'Xoá bảng lương thành công',
-            notFoundMessage: 'Không tìm thấy bảng lương',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $salary = $this->employeeSalaryModel->with('employee:employee_id,cinema_id')->find($id);
+
+            if (! $salary) {
+                return $this->errorResponse(message: 'Không tìm thấy bảng lương', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $salary->employee?->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền xoá bảng lương này', code: 403);
+            }
+
+            $salary->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá bảng lương thành công');
+        });
     }
 }

@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Requests\CreateMovieRequest;
 use App\Http\Requests\UpdateMovieRequest;
 use App\Models\Movie;
+use App\Models\Showtime;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -128,15 +129,45 @@ class MovieServices extends Services
         $date = now()->format('Ym');
         $like = "{$prefix}-{$date}-%";
 
-        $count = $this->movieModel->where('code', 'like', $like)->count() + 1;
+        $count = $this->movieModel->withTrashed()->where('code', 'like', $like)->count() + 1;
         $code = sprintf('%s-%s-%04d', $prefix, $date, $count);
 
-        // Đảm bảo không trùng trong trường hợp race condition
-        while ($this->movieModel->where('code', $code)->exists()) {
+        while ($this->movieModel->withTrashed()->where('code', $code)->exists()) {
             $count++;
             $code = sprintf('%s-%s-%04d', $prefix, $date, $count);
         }
 
         return $code;
+    }
+
+    /**
+     * Xoá phim theo ID (kiểm tra suất chiếu đang hoạt động).
+     */
+    public function destroy(string $id)
+    {
+        return $this->tryCatch(function () use ($id) {
+            $movie = $this->movieModel->find($id);
+
+            if (! $movie) {
+                return $this->errorResponse(message: 'Không tìm thấy phim', code: 404);
+            }
+
+            $activeShowtimes = Showtime::where('movie_id', $id)
+                ->where('ends_at', '>', now())
+                ->count();
+
+            if ($activeShowtimes > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá phim đang có {$activeShowtimes} suất chiếu chưa kết thúc",
+                );
+            }
+
+            DB::transaction(function () use ($movie) {
+                $movie->categories()->detach();
+                $movie->delete();
+            });
+
+            return $this->successResponse(data: null, message: 'Xoá phim thành công');
+        });
     }
 }

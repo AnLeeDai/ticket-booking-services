@@ -74,7 +74,9 @@ trait QueryFilter
         try {
             return $callback();
         } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
+            $description = app()->isProduction() ? '' : $e->getMessage();
+
+            return $this->serverErrorResponse(description: $description);
         }
     }
 
@@ -270,6 +272,12 @@ trait QueryFilter
         $dateFrom = $request->query('date_from');
         $dateTo = $request->query('date_to');
         $dateColumn = $request->query('date_column', 'created_at');
+
+        // Whitelist date columns to prevent arbitrary column access
+        $allowedDateColumns = ['created_at', 'updated_at', 'deleted_at', 'release_date', 'end_date', 'starts_at', 'ends_at', 'hire_date', 'sale_date', 'dob', 'hold_until'];
+        if (! in_array($dateColumn, $allowedDateColumns, true)) {
+            $dateColumn = 'created_at';
+        }
 
         if ($dateFrom) {
             $builder->whereDate($dateColumn, '>=', $dateFrom);

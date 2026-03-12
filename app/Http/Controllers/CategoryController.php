@@ -32,4 +32,9 @@ class CategoryController extends Controller
     {
         return $this->categoryServices->update($request, $id);
     }
+
+    public function destroy(string $id)
+    {
+        return $this->categoryServices->destroy($id);
+    }
 }

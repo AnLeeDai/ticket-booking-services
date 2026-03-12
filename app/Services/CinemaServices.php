@@ -61,10 +61,21 @@ class CinemaServices extends Services
      */
     public function update(UpdateCinemaRequest $request, string $id)
     {
+        if (! $this->canAccessCinema($request, $id)) {
+            return $this->errorResponse(message: 'Không có quyền cập nhật rạp này', code: 403);
+        }
+
+        $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
+
+        // Manager không được thay đổi manager_id và trạng thái
+        if ($this->isManager($request)) {
+            unset($data['manager_id'], $data['active']);
+        }
+
         return $this->updateRecord(
             model: $this->cinemaModel,
             id: $id,
-            data: array_filter($request->validated(), fn ($v) => ! is_null($v)),
+            data: $data,
             message: 'Cập nhật rạp chiếu thành công',
             notFoundMessage: 'Không tìm thấy rạp chiếu',
         );
@@ -75,12 +86,31 @@ class CinemaServices extends Services
      */
     public function destroy(string $id)
     {
-        return $this->deleteRecord(
-            model: $this->cinemaModel,
-            id: $id,
-            message: 'Xoá rạp chiếu thành công',
-            notFoundMessage: 'Không tìm thấy rạp chiếu',
-        );
+        return $this->tryCatch(function () use ($id) {
+            $cinema = $this->cinemaModel->find($id);
+
+            if (! $cinema) {
+                return $this->errorResponse(message: 'Không tìm thấy rạp chiếu', code: 404);
+            }
+
+            $activeShowtimes = $cinema->showtimes()->where('ends_at', '>', now())->count();
+            if ($activeShowtimes > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá rạp đang có {$activeShowtimes} suất chiếu chưa kết thúc",
+                );
+            }
+
+            $employeeCount = $cinema->employees()->count();
+            if ($employeeCount > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá rạp đang có {$employeeCount} nhân viên",
+                );
+            }
+
+            $cinema->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá rạp chiếu thành công');
+        });
     }
 
     /**

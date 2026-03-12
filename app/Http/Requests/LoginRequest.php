@@ -15,7 +15,7 @@ class LoginRequest extends FormRequest
     {
         return [
             'email' => 'required|email',
-            'password' => 'required|string|min:8|regex:/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\W_]).+$/',
+            'password' => 'required|string',
             'device_name' => ['required', 'string', 'max:100'],
         ];
     }
@@ -28,8 +28,6 @@ class LoginRequest extends FormRequest
 
             'password.required' => 'Mật khẩu là bắt buộc.',
             'password.string' => 'Mật khẩu phải là chuỗi ký tự.',
-            'password.min' => 'Mật khẩu phải có ít nhất :min ký tự.',
-            'password.regex' => 'Mật khẩu phải chứa ít nhất một chữ cái viết hoa, một chữ cái viết thường, một chữ số và một ký tự đặc biệt.',
 
             'device_name.required' => 'Tên thiết bị là bắt buộc.',
             'device_name.string' => 'Tên thiết bị phải là chuỗi ký tự.',

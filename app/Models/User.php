@@ -64,6 +64,11 @@ class User extends Authenticatable
         return $this->hasMany(Ticket::class, 'user_id', 'user_id');
     }
 
+    public function managedCinemas(): HasMany
+    {
+        return $this->hasMany(Cinema::class, 'manager_id', 'user_id');
+    }
+
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new ResetPasswordCodeNotification($token));

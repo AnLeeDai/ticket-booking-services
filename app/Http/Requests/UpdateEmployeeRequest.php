@@ -16,6 +16,7 @@ class UpdateEmployeeRequest extends FormRequest
     {
         return [
             'employee_role_id' => 'sometimes|required|uuid|exists:employee_roles,employee_role_id',
+            'cinema_id' => 'sometimes|required|uuid|exists:cinemas,cinema_id',
             'name' => 'sometimes|required|string|max:255',
             'hire_date' => 'sometimes|required|date',
             'end_date' => 'nullable|date|after:hire_date',
@@ -29,6 +30,9 @@ class UpdateEmployeeRequest extends FormRequest
             'employee_role_id.required' => 'Vai trò nhân viên không được để trống',
             'employee_role_id.uuid' => 'ID vai trò nhân viên không hợp lệ',
             'employee_role_id.exists' => 'Vai trò nhân viên không tồn tại',
+
+            'cinema_id.uuid' => 'ID rạp chiếu không hợp lệ',
+            'cinema_id.exists' => 'Rạp chiếu không tồn tại',
 
             'name.required' => 'Tên nhân viên không được để trống',
 

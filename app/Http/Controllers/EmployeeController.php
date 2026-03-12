@@ -18,9 +18,9 @@ class EmployeeController extends Controller
         return $this->employeeServices->getAll($request);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        return $this->employeeServices->getById($id);
+        return $this->employeeServices->getById($request, $id);
     }
 
     public function store(CreateEmployeeRequest $request)
@@ -33,8 +33,8 @@ class EmployeeController extends Controller
         return $this->employeeServices->update($request, $id);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->employeeServices->destroy($id);
+        return $this->employeeServices->destroy($request, $id);
     }
 }

@@ -17,6 +17,7 @@ class CreateEmployeeRequest extends FormRequest
         return [
             'employee_role_id' => 'required|uuid|exists:employee_roles,employee_role_id',
             'user_id' => 'required|uuid|exists:users,user_id|unique:employees,user_id',
+            'cinema_id' => 'required|uuid|exists:cinemas,cinema_id',
             'name' => 'required|string|max:255',
             'hire_date' => 'required|date',
             'end_date' => 'nullable|date|after:hire_date',
@@ -35,6 +36,10 @@ class CreateEmployeeRequest extends FormRequest
             'user_id.uuid' => 'ID tài khoản không hợp lệ',
             'user_id.exists' => 'Tài khoản không tồn tại',
             'user_id.unique' => 'Tài khoản đã được gán cho nhân viên khác',
+
+            'cinema_id.required' => 'Rạp chiếu không được để trống',
+            'cinema_id.uuid' => 'ID rạp chiếu không hợp lệ',
+            'cinema_id.exists' => 'Rạp chiếu không tồn tại',
 
             'name.required' => 'Tên nhân viên không được để trống',
             'name.string' => 'Tên nhân viên phải là chuỗi ký tự',

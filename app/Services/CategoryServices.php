@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Requests\CreateCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use App\Models\Movie;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 
@@ -80,7 +81,7 @@ class CategoryServices extends Services
 
             $exists = $this->categoryModel
                 ->where('slug', $slug)
-                ->where('category_id', '!=', $id)
+                ->where('id', '!=', $id)
                 ->exists();
 
             if ($exists) {
@@ -97,5 +98,31 @@ class CategoryServices extends Services
             message: 'Cập nhật danh mục thành công',
             notFoundMessage: 'Không tìm thấy danh mục',
         );
+    }
+
+    /**
+     * Xoá danh mục theo ID (kiểm tra phim đang gắn).
+     */
+    public function destroy(string $id)
+    {
+        return $this->tryCatch(function () use ($id) {
+            $category = $this->categoryModel->find($id);
+
+            if (! $category) {
+                return $this->errorResponse(message: 'Không tìm thấy danh mục', code: 404);
+            }
+
+            $movieCount = Movie::whereHas('categories', fn ($q) => $q->where('categories.id', $id))->count();
+
+            if ($movieCount > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá danh mục đang được gắn với {$movieCount} phim",
+                );
+            }
+
+            $category->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá danh mục thành công');
+        });
     }
 }

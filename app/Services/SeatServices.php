@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Http\Requests\CreateSeatRequest;
 use App\Http\Requests\UpdateSeatRequest;
 use App\Models\Seat;
+use App\Models\Showtime;
 use Illuminate\Http\Request;
 
 class SeatServices extends Services
@@ -64,9 +65,16 @@ class SeatServices extends Services
 
     public function store(CreateSeatRequest $request)
     {
+        $data = $request->validated();
+        $showtime = Showtime::find($data['showtime_id']);
+
+        if ($showtime && ! $this->canAccessCinema($request, $showtime->cinema_id)) {
+            return $this->errorResponse(message: 'Không có quyền thêm ghế cho suất chiếu này', code: 403);
+        }
+
         return $this->createRecord(
             model: $this->seatModel,
-            data: $request->validated(),
+            data: $data,
             message: 'Tạo ghế thành công',
             failMessage: 'Tạo ghế thất bại',
         );
@@ -95,6 +103,12 @@ class SeatServices extends Services
             ]);
 
             $showtimeId = $validated['showtime_id'];
+
+            $showtime = Showtime::find($showtimeId);
+            if ($showtime && ! $this->canAccessCinema($request, $showtime->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền thêm ghế cho suất chiếu này', code: 403);
+            }
+
             $seats = collect($validated['seats'])->map(fn ($seat) => array_merge($seat, [
                 'showtime_id' => $showtimeId,
                 'active' => 'IN_ACTIVE',
@@ -132,23 +146,63 @@ class SeatServices extends Services
 
     public function update(UpdateSeatRequest $request, string $id)
     {
-        return $this->updateRecord(
-            model: $this->seatModel,
-            id: $id,
-            data: array_filter($request->validated(), fn ($v) => ! is_null($v)),
-            message: 'Cập nhật ghế thành công',
-            notFoundMessage: 'Không tìm thấy ghế',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $seat = $this->seatModel->with('showtime:showtime_id,cinema_id')->find($id);
+
+            if (! $seat) {
+                return $this->errorResponse(message: 'Không tìm thấy ghế', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $seat->showtime?->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền cập nhật ghế này', code: 403);
+            }
+
+            $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
+
+            // Validate seat_code uniqueness within same showtime
+            if (isset($data['seat_code']) && $data['seat_code'] !== $seat->seat_code) {
+                $exists = $this->seatModel
+                    ->where('showtime_id', $seat->showtime_id)
+                    ->where('seat_code', $data['seat_code'])
+                    ->where('seat_id', '!=', $id)
+                    ->exists();
+
+                if ($exists) {
+                    return $this->errorResponse(message: 'Mã ghế đã tồn tại trong suất chiếu này');
+                }
+            }
+
+            $seat->update($data);
+
+            return $this->successResponse(data: $seat->fresh(), message: 'Cập nhật ghế thành công');
+        });
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->deleteRecord(
-            model: $this->seatModel,
-            id: $id,
-            message: 'Xoá ghế thành công',
-            notFoundMessage: 'Không tìm thấy ghế',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $seat = $this->seatModel->with('showtime:showtime_id,cinema_id')->find($id);
+
+            if (! $seat) {
+                return $this->errorResponse(message: 'Không tìm thấy ghế', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $seat->showtime?->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền xoá ghế này', code: 403);
+            }
+
+            if ($seat->active === 'SOLD') {
+                return $this->errorResponse(message: 'Không thể xoá ghế đã được bán');
+            }
+
+            if ($seat->active === 'HOLD' && $seat->hold_until > now()) {
+                return $this->errorResponse(message: 'Không thể xoá ghế đang được giữ');
+            }
+
+            $seat->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá ghế thành công');
+        });
     }
 
     /**

@@ -126,6 +126,10 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        // Tạo cinema qua API
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Emp Test', 'location' => 'HCM']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         // Tạo user mới cho employee
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
@@ -139,6 +143,7 @@ class EmployeeManagementTest extends TestCase
         $response = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Nguyễn Văn A',
             'hire_date' => '2026-01-15',
         ]);
@@ -162,6 +167,9 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema List', 'location' => 'HN']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
             'user_name' => 'emp_list',
@@ -174,6 +182,7 @@ class EmployeeManagementTest extends TestCase
         $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Test Employee',
             'hire_date' => '2026-01-15',
         ]);
@@ -193,6 +202,9 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Detail', 'location' => 'DN']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
             'user_name' => 'emp_detail',
@@ -205,6 +217,7 @@ class EmployeeManagementTest extends TestCase
         $createRes = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Detail Employee',
             'hire_date' => '2026-02-01',
         ]);
@@ -225,6 +238,9 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Update', 'location' => 'HP']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
             'user_name' => 'emp_update',
@@ -237,6 +253,7 @@ class EmployeeManagementTest extends TestCase
         $createRes = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Old Name',
             'hire_date' => '2026-01-15',
         ]);
@@ -260,6 +277,9 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Delete', 'location' => 'HN']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
             'user_name' => 'emp_delete',
@@ -272,6 +292,7 @@ class EmployeeManagementTest extends TestCase
         $createRes = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Delete Me',
             'hire_date' => '2026-01-15',
         ]);
@@ -282,7 +303,8 @@ class EmployeeManagementTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true);
 
-        $this->assertDatabaseMissing('employees', ['employee_id' => $empId]);
+        // Employee uses SoftDeletes — row stays but deleted_at is set
+        $this->assertSoftDeleted('employees', ['employee_id' => $empId]);
     }
 
     public function test_employee_user_id_must_be_unique(): void
@@ -291,6 +313,9 @@ class EmployeeManagementTest extends TestCase
 
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
+
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Unique', 'location' => 'HN']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
 
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
@@ -305,6 +330,7 @@ class EmployeeManagementTest extends TestCase
         $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'First',
             'hire_date' => '2026-01-15',
         ])->assertStatus(200);
@@ -313,6 +339,7 @@ class EmployeeManagementTest extends TestCase
         $response = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Second',
             'hire_date' => '2026-02-15',
         ]);
@@ -454,6 +481,9 @@ class EmployeeManagementTest extends TestCase
         $roleRes = $this->postJson('/api/employee-roles', ['name' => 'STAFF']);
         $empRoleId = $roleRes->json('data.employee_role_id');
 
+        $cinemaRes = $this->postJson('/api/cinemas', ['name' => 'Cinema Helper ' . uniqid(), 'location' => 'HCM']);
+        $cinemaId = $cinemaRes->json('data.cinema_id');
+
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
             'user_name' => 'emp_helper_'.uniqid(),
@@ -466,6 +496,7 @@ class EmployeeManagementTest extends TestCase
         $createRes = $this->postJson('/api/employees', [
             'employee_role_id' => $empRoleId,
             'user_id' => $empUser->user_id,
+            'cinema_id' => $cinemaId,
             'name' => 'Helper Employee',
             'hire_date' => '2026-01-15',
         ]);

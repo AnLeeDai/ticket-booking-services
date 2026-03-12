@@ -19,8 +19,8 @@ class CreateTicketRequest extends FormRequest
             'seat_id' => 'required|uuid|exists:seats,seat_id',
             'payment_method' => ['required', Rule::in(['TRANSFER', 'CARD', 'CASH'])],
             'combos' => 'nullable|array',
-            'combos.*.combo_id' => 'required_with:combos|uuid|exists:combos,combo_id',
-            'combos.*.qty' => 'required_with:combos|integer|min:1',
+            'combos.*.combo_id' => 'required_with:combos|uuid|exists:combos,combo_id|distinct',
+            'combos.*.qty' => 'required_with:combos|integer|min:1|max:10',
         ];
     }
 
@@ -45,6 +45,8 @@ class CreateTicketRequest extends FormRequest
             'combos.*.qty.required_with' => 'Số lượng combo không được để trống',
             'combos.*.qty.integer' => 'Số lượng combo phải là số nguyên',
             'combos.*.qty.min' => 'Số lượng combo tối thiểu là 1',
+            'combos.*.qty.max' => 'Số lượng combo tối đa là 10',
+            'combos.*.combo_id.distinct' => 'Combo bị trùng lặp trong danh sách',
         ];
     }
 }

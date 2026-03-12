@@ -18,10 +18,17 @@ class CinemaSaleServices extends Services
      */
     public function getAll(Request $request)
     {
+        $query = $this->cinemaSaleModel->with([
+            'cinema:cinema_id,code,name,location',
+        ]);
+
+        $cinemaIds = $this->getManagedCinemaIds($request);
+        if ($cinemaIds !== null) {
+            $query->whereIn('cinema_id', $cinemaIds);
+        }
+
         return $this->filterAndPaginate(
-            query: $this->cinemaSaleModel->with([
-                'cinema:cinema_id,code,name,location',
-            ]),
+            query: $query,
             request: $request,
             sortableFields: ['sale_date', 'gross_amount', 'created_at'],
             message: 'Lấy danh sách doanh thu rạp thành công',
@@ -31,15 +38,23 @@ class CinemaSaleServices extends Services
     /**
      * Lấy chi tiết doanh thu rạp theo ID.
      */
-    public function getById(string $id)
+    public function getById(Request $request, string $id)
     {
-        return $this->findById(
-            model: $this->cinemaSaleModel,
-            id: $id,
-            relations: ['cinema:cinema_id,code,name,location'],
-            message: 'Lấy thông tin doanh thu rạp thành công',
-            notFoundMessage: 'Không tìm thấy doanh thu rạp',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $sale = $this->cinemaSaleModel->with([
+                'cinema:cinema_id,code,name,location',
+            ])->find($id);
+
+            if (! $sale) {
+                return $this->errorResponse(message: 'Không tìm thấy doanh thu rạp', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $sale->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền xem doanh thu rạp này', code: 403);
+            }
+
+            return $this->successResponse(data: $sale, message: 'Lấy thông tin doanh thu rạp thành công');
+        });
     }
 
     /**
@@ -47,9 +62,15 @@ class CinemaSaleServices extends Services
      */
     public function store(CreateCinemaSaleRequest $request)
     {
+        $data = $request->validated();
+
+        if (! $this->canAccessCinema($request, $data['cinema_id'])) {
+            return $this->errorResponse(message: 'Không có quyền tạo doanh thu cho rạp này', code: 403);
+        }
+
         return $this->createRecord(
             model: $this->cinemaSaleModel,
-            data: $request->validated(),
+            data: $data,
             message: 'Tạo doanh thu rạp thành công',
             failMessage: 'Tạo doanh thu rạp thất bại',
         );
@@ -60,25 +81,48 @@ class CinemaSaleServices extends Services
      */
     public function update(UpdateCinemaSaleRequest $request, string $id)
     {
-        return $this->updateRecord(
-            model: $this->cinemaSaleModel,
-            id: $id,
-            data: array_filter($request->validated(), fn ($v) => ! is_null($v)),
-            message: 'Cập nhật doanh thu rạp thành công',
-            notFoundMessage: 'Không tìm thấy doanh thu rạp',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $sale = $this->cinemaSaleModel->find($id);
+
+            if (! $sale) {
+                return $this->errorResponse(message: 'Không tìm thấy doanh thu rạp', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $sale->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền cập nhật doanh thu rạp này', code: 403);
+            }
+
+            $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
+
+            if (isset($data['cinema_id']) && ! $this->canAccessCinema($request, $data['cinema_id'])) {
+                return $this->errorResponse(message: 'Không có quyền chuyển doanh thu sang rạp này', code: 403);
+            }
+
+            $sale->update($data);
+
+            return $this->successResponse(data: $sale->fresh(), message: 'Cập nhật doanh thu rạp thành công');
+        });
     }
 
     /**
      * Xoá doanh thu rạp theo ID.
      */
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->deleteRecord(
-            model: $this->cinemaSaleModel,
-            id: $id,
-            message: 'Xoá doanh thu rạp thành công',
-            notFoundMessage: 'Không tìm thấy doanh thu rạp',
-        );
+        return $this->tryCatch(function () use ($request, $id) {
+            $sale = $this->cinemaSaleModel->find($id);
+
+            if (! $sale) {
+                return $this->errorResponse(message: 'Không tìm thấy doanh thu rạp', code: 404);
+            }
+
+            if (! $this->canAccessCinema($request, $sale->cinema_id)) {
+                return $this->errorResponse(message: 'Không có quyền xoá doanh thu rạp này', code: 403);
+            }
+
+            $sale->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá doanh thu rạp thành công');
+        });
     }
 }

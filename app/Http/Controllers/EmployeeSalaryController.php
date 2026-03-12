@@ -18,9 +18,9 @@ class EmployeeSalaryController extends Controller
         return $this->employeeSalaryServices->getAll($request);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        return $this->employeeSalaryServices->getById($id);
+        return $this->employeeSalaryServices->getById($request, $id);
     }
 
     public function store(CreateEmployeeSalaryRequest $request)
@@ -33,8 +33,8 @@ class EmployeeSalaryController extends Controller
         return $this->employeeSalaryServices->update($request, $id);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->employeeSalaryServices->destroy($id);
+        return $this->employeeSalaryServices->destroy($request, $id);
     }
 }

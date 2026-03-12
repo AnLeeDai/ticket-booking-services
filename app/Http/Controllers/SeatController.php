@@ -43,8 +43,8 @@ class SeatController extends Controller
         return $this->seatServices->update($request, $id);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->seatServices->destroy($id);
+        return $this->seatServices->destroy($request, $id);
     }
 }

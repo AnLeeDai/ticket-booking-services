@@ -72,11 +72,23 @@ class EmployeeRoleServices extends Services
      */
     public function destroy(string $id)
     {
-        return $this->deleteRecord(
-            model: $this->employeeRoleModel,
-            id: $id,
-            message: 'Xoá vai trò nhân viên thành công',
-            notFoundMessage: 'Không tìm thấy vai trò nhân viên',
-        );
+        return $this->tryCatch(function () use ($id) {
+            $role = $this->employeeRoleModel->find($id);
+
+            if (! $role) {
+                return $this->errorResponse(message: 'Không tìm thấy vai trò nhân viên', code: 404);
+            }
+
+            $employeeCount = $role->employees()->count();
+            if ($employeeCount > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá vai trò đang được gán cho {$employeeCount} nhân viên",
+                );
+            }
+
+            $role->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá vai trò nhân viên thành công');
+        });
     }
 }

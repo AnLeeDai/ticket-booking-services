@@ -33,8 +33,8 @@ class ShowtimeController extends Controller
         return $this->showtimeServices->update($request, $id);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->showtimeServices->destroy($id);
+        return $this->showtimeServices->destroy($request, $id);
     }
 }

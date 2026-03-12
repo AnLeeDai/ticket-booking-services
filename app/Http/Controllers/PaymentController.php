@@ -16,8 +16,8 @@ class PaymentController extends Controller
         return $this->paymentServices->getAll($request);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        return $this->paymentServices->getById($id);
+        return $this->paymentServices->getById($request, $id);
     }
 }

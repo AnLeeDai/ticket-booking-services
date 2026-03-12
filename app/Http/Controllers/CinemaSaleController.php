@@ -18,9 +18,9 @@ class CinemaSaleController extends Controller
         return $this->cinemaSaleServices->getAll($request);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        return $this->cinemaSaleServices->getById($id);
+        return $this->cinemaSaleServices->getById($request, $id);
     }
 
     public function store(CreateCinemaSaleRequest $request)
@@ -33,8 +33,8 @@ class CinemaSaleController extends Controller
         return $this->cinemaSaleServices->update($request, $id);
     }
 
-    public function destroy(string $id)
+    public function destroy(Request $request, string $id)
     {
-        return $this->cinemaSaleServices->destroy($id);
+        return $this->cinemaSaleServices->destroy($request, $id);
     }
 }

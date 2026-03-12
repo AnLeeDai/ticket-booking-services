@@ -72,11 +72,26 @@ class ComboServices extends Services
      */
     public function destroy(string $id)
     {
-        return $this->deleteRecord(
-            model: $this->comboModel,
-            id: $id,
-            message: 'Xoá combo thành công',
-            notFoundMessage: 'Không tìm thấy combo',
-        );
+        return $this->tryCatch(function () use ($id) {
+            $combo = $this->comboModel->find($id);
+
+            if (! $combo) {
+                return $this->errorResponse(message: 'Không tìm thấy combo', code: 404);
+            }
+
+            $activeTicketCount = $combo->tickets()
+                ->whereIn('status', ['IS_PENDING', 'IN_ACTIVE'])
+                ->count();
+
+            if ($activeTicketCount > 0) {
+                return $this->errorResponse(
+                    message: "Không thể xoá combo đang được sử dụng trong {$activeTicketCount} vé",
+                );
+            }
+
+            $combo->delete();
+
+            return $this->successResponse(data: null, message: 'Xoá combo thành công');
+        });
     }
 }

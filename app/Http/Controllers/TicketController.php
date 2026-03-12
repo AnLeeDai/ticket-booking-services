@@ -17,9 +17,9 @@ class TicketController extends Controller
         return $this->ticketServices->getAll($request);
     }
 
-    public function show(string $id)
+    public function show(Request $request, string $id)
     {
-        return $this->ticketServices->getById($id);
+        return $this->ticketServices->getById($request, $id);
     }
 
     public function myTickets(Request $request)
@@ -32,9 +32,9 @@ class TicketController extends Controller
         return $this->ticketServices->bookTicket($request);
     }
 
-    public function confirmPayment(string $id)
+    public function confirmPayment(Request $request, string $id)
     {
-        return $this->ticketServices->confirmPayment($id);
+        return $this->ticketServices->confirmPayment($request, $id);
     }
 
     public function cancel(string $id, Request $request)

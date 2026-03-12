@@ -13,9 +13,18 @@ class UpdateCinemaSaleRequest extends FormRequest
 
     public function rules(): array
     {
+        $saleId = $this->route('id');
+
         return [
             'cinema_id' => 'sometimes|required|uuid|exists:cinemas,cinema_id',
-            'sale_date' => 'sometimes|required|date',
+            'sale_date' => [
+                'sometimes',
+                'required',
+                'date',
+                \Illuminate\Validation\Rule::unique('cinemas_sales')->where(function ($query) {
+                    return $query->where('cinema_id', $this->cinema_id ?? $this->route('cinema_id'));
+                })->ignore($saleId, 'cinema_sale_id'),
+            ],
             'gross_amount' => 'nullable|numeric|min:0',
         ];
     }

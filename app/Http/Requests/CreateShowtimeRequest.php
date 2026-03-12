@@ -17,7 +17,7 @@ class CreateShowtimeRequest extends FormRequest
         return [
             'cinema_id' => 'required|uuid|exists:cinemas,cinema_id',
             'movie_id' => 'required|uuid|exists:movies,movie_id',
-            'starts_at' => 'required|date',
+            'starts_at' => 'required|date|after:now',
             'ends_at' => 'required|date|after:starts_at',
             'screen_type' => ['required', Rule::in(['2D', '3D'])],
         ];
@@ -36,6 +36,7 @@ class CreateShowtimeRequest extends FormRequest
 
             'starts_at.required' => 'Thời gian bắt đầu không được để trống',
             'starts_at.date' => 'Thời gian bắt đầu không hợp lệ',
+            'starts_at.after' => 'Thời gian bắt đầu phải sau thời điểm hiện tại',
 
             'ends_at.required' => 'Thời gian kết thúc không được để trống',
             'ends_at.date' => 'Thời gian kết thúc không hợp lệ',

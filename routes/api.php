@@ -17,10 +17,12 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
 // ====== AUTH (Public) ======
-Route::post('login', [AuthController::class, 'login']);
-Route::post('register', [AuthController::class, 'register']);
-Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
-Route::post('reset-password', [AuthController::class, 'resetPassword']);
+Route::middleware('throttle:5,1')->group(function () {
+    Route::post('login', [AuthController::class, 'login']);
+    Route::post('register', [AuthController::class, 'register']);
+    Route::post('forgot-password', [AuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [AuthController::class, 'resetPassword']);
+});
 
 // ====== AUTH (Private) ======
 Route::group(['prefix' => 'auth'], function () {
@@ -37,10 +39,13 @@ Route::group(['prefix' => 'auth'], function () {
 Route::group(['prefix' => 'users'], function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/profile', [UserController::class, 'profile']);
+        Route::put('/profile', [UserController::class, 'updateProfile']);
     });
 
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::get('/', [UserController::class, 'index']);
+        Route::put('/{id}', [UserController::class, 'update']);
+        Route::delete('/{id}', [UserController::class, 'destroy']);
     });
 });
 
@@ -52,6 +57,7 @@ Route::group(['prefix' => 'categories'], function () {
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::post('/', [CategoryController::class, 'store']);
         Route::put('/{id}', [CategoryController::class, 'update']);
+        Route::delete('/{id}', [CategoryController::class, 'destroy']);
     });
 });
 
@@ -63,6 +69,7 @@ Route::group(['prefix' => 'movies'], function () {
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::post('/', [MovieController::class, 'store']);
         Route::put('/{id}', [MovieController::class, 'update']);
+        Route::delete('/{id}', [MovieController::class, 'destroy']);
     });
 });
 
@@ -85,8 +92,11 @@ Route::group(['prefix' => 'cinemas'], function () {
 
     Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::post('/', [CinemaController::class, 'store']);
-        Route::put('/{id}', [CinemaController::class, 'update']);
         Route::delete('/{id}', [CinemaController::class, 'destroy']);
+    });
+
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
+        Route::put('/{id}', [CinemaController::class, 'update']);
     });
 });
 
@@ -95,7 +105,7 @@ Route::group(['prefix' => 'showtimes'], function () {
     Route::get('/', [ShowtimeController::class, 'index']);
     Route::get('/{id}', [ShowtimeController::class, 'show']);
 
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::post('/', [ShowtimeController::class, 'store']);
         Route::put('/{id}', [ShowtimeController::class, 'update']);
         Route::delete('/{id}', [ShowtimeController::class, 'destroy']);
@@ -108,7 +118,7 @@ Route::group(['prefix' => 'seats'], function () {
     Route::get('/{id}', [SeatController::class, 'show']);
     Route::get('/showtime/{showtimeId}', [SeatController::class, 'getByShowtime']);
 
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::post('/', [SeatController::class, 'store']);
         Route::post('/bulk', [SeatController::class, 'storeBulk']);
         Route::put('/{id}', [SeatController::class, 'update']);
@@ -120,20 +130,23 @@ Route::group(['prefix' => 'seats'], function () {
 Route::group(['prefix' => 'tickets'], function () {
     Route::middleware('auth:sanctum')->group(function () {
         Route::get('/my-tickets', [TicketController::class, 'myTickets']);
-        Route::post('/book', [TicketController::class, 'book']);
+        Route::middleware('throttle:booking')->post('/book', [TicketController::class, 'book']);
         Route::post('/{id}/cancel', [TicketController::class, 'cancel']);
     });
 
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [TicketController::class, 'index']);
         Route::get('/{id}', [TicketController::class, 'show']);
+    });
+
+    Route::middleware(['auth:sanctum', 'role:admin,manager,employee'])->group(function () {
         Route::post('/{id}/confirm-payment', [TicketController::class, 'confirmPayment']);
     });
 });
 
 // ====== PAYMENTS ======
 Route::group(['prefix' => 'payments'], function () {
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [PaymentController::class, 'index']);
         Route::get('/{id}', [PaymentController::class, 'show']);
     });
@@ -141,9 +154,12 @@ Route::group(['prefix' => 'payments'], function () {
 
 // ====== EMPLOYEE ROLES ======
 Route::group(['prefix' => 'employee-roles'], function () {
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [EmployeeRoleController::class, 'index']);
         Route::get('/{id}', [EmployeeRoleController::class, 'show']);
+    });
+
+    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
         Route::post('/', [EmployeeRoleController::class, 'store']);
         Route::put('/{id}', [EmployeeRoleController::class, 'update']);
         Route::delete('/{id}', [EmployeeRoleController::class, 'destroy']);
@@ -152,7 +168,7 @@ Route::group(['prefix' => 'employee-roles'], function () {
 
 // ====== EMPLOYEES ======
 Route::group(['prefix' => 'employees'], function () {
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [EmployeeController::class, 'index']);
         Route::get('/{id}', [EmployeeController::class, 'show']);
         Route::post('/', [EmployeeController::class, 'store']);
@@ -163,7 +179,7 @@ Route::group(['prefix' => 'employees'], function () {
 
 // ====== EMPLOYEE SALARIES ======
 Route::group(['prefix' => 'employee-salaries'], function () {
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [EmployeeSalaryController::class, 'index']);
         Route::get('/{id}', [EmployeeSalaryController::class, 'show']);
         Route::post('/', [EmployeeSalaryController::class, 'store']);
@@ -174,7 +190,7 @@ Route::group(['prefix' => 'employee-salaries'], function () {
 
 // ====== CINEMA SALES ======
 Route::group(['prefix' => 'cinema-sales'], function () {
-    Route::middleware(['auth:sanctum', 'role:admin'])->group(function () {
+    Route::middleware(['auth:sanctum', 'role:admin,manager'])->group(function () {
         Route::get('/', [CinemaSaleController::class, 'index']);
         Route::get('/{id}', [CinemaSaleController::class, 'show']);
         Route::post('/', [CinemaSaleController::class, 'store']);
