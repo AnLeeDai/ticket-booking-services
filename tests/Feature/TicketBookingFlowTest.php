@@ -6,6 +6,7 @@ use App\Models\Category;
 use App\Models\Cinema;
 use App\Models\Combo;
 use App\Models\Movie;
+use App\Models\Payment;
 use App\Models\Role;
 use App\Models\Seat;
 use App\Models\Showtime;
@@ -23,6 +24,7 @@ class TicketBookingFlowTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $customer;
 
     protected function setUp(): void
@@ -811,7 +813,7 @@ class TicketBookingFlowTest extends TestCase
         $ticketId = $bookRes->json('data.ticket_id');
 
         Sanctum::actingAs($this->admin);
-        $paymentId = \App\Models\Payment::where('ticket_id', $ticketId)->first()->payment_id;
+        $paymentId = Payment::where('ticket_id', $ticketId)->first()->payment_id;
 
         $response = $this->getJson("/api/payments/{$paymentId}");
 
@@ -902,18 +904,18 @@ class TicketBookingFlowTest extends TestCase
     private function createShowtimeViaApi(): string
     {
         $cinemaRes = $this->postJson('/api/cinemas', [
-            'name' => 'Cinema ' . uniqid(),
+            'name' => 'Cinema '.uniqid(),
             'location' => 'TP.HCM',
         ]);
         $cinemaId = $cinemaRes->json('data.cinema_id');
 
-        $catRes = $this->postJson('/api/categories', ['name' => 'Cat ' . uniqid()]);
+        $catRes = $this->postJson('/api/categories', ['name' => 'Cat '.uniqid()]);
         $categoryId = $catRes->json('data.id');
 
         $movieRes = $this->postJson('/api/movies', [
             'category_ids' => [$categoryId],
-            'title' => 'Movie ' . uniqid(),
-            'name' => 'Movie ' . uniqid(),
+            'title' => 'Movie '.uniqid(),
+            'name' => 'Movie '.uniqid(),
             'thumb_url' => 'https://example.com/thumb.jpg',
             'trailer_url' => 'https://example.com/trailer.mp4',
             'duration' => 120,

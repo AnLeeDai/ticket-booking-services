@@ -14,6 +14,7 @@ class CinemaSaleTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $customer;
 
     protected function setUp(): void

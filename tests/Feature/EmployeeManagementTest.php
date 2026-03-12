@@ -14,6 +14,7 @@ class EmployeeManagementTest extends TestCase
     use RefreshDatabase;
 
     private User $admin;
+
     private User $customer;
 
     protected function setUp(): void
@@ -455,9 +456,9 @@ class EmployeeManagementTest extends TestCase
 
         $empUser = User::create([
             'role_id' => Role::where('name', 'customer')->first()->role_id,
-            'user_name' => 'emp_helper_' . uniqid(),
+            'user_name' => 'emp_helper_'.uniqid(),
             'full_name' => 'Employee Helper',
-            'email' => 'emphelper_' . uniqid() . '@test.com',
+            'email' => 'emphelper_'.uniqid().'@test.com',
             'password' => Hash::make('Password@123'),
             'status' => 'IN_ACTIVE',
         ]);
