@@ -13,11 +13,11 @@ class UserController extends Controller
 
     public function index(Request $request)
     {
-        return $this->userServices->findAllUsers($request);
+        return $this->userServices->getAll($request);
     }
 
     public function profile()
     {
-        return $this->userServices->me();
+        return $this->userServices->getProfile();
     }
 }

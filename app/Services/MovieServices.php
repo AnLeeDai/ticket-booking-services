@@ -118,19 +118,6 @@ class MovieServices extends Services
         });
     }
 
-    // /**
-    //  * Xoá phim theo ID.
-    //  */
-    // public function destroy(string $id)
-    // {
-    //     return $this->deleteRecord(
-    //         model: $this->movieModel,
-    //         id: $id,
-    //         message: 'Xoá phim thành công',
-    //         notFoundMessage: 'Không tìm thấy phim',
-    //     );
-    // }
-
     /**
      * Tự sinh mã phim theo format: MV-YYYYMM-XXXX
      * Ví dụ: MV-202603-0001

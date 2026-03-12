@@ -27,4 +27,9 @@ class Cinema extends Model
     {
         return $this->hasMany(Showtime::class, 'cinema_id', 'cinema_id');
     }
+
+    public function sales(): HasMany
+    {
+        return $this->hasMany(CinemaSale::class, 'cinema_id', 'cinema_id');
+    }
 }

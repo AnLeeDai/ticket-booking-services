@@ -80,7 +80,7 @@ class CategoryServices extends Services
 
             $exists = $this->categoryModel
                 ->where('slug', $slug)
-                ->where('id', '!=', $id)
+                ->where('category_id', '!=', $id)
                 ->exists();
 
             if ($exists) {

@@ -122,7 +122,7 @@ class AuthServices extends Services
         return $this->tryCatch(function () use ($request) {
             $user = $this->getAuthUser($request);
             if (! $user) {
-                return $this->errorResponse('Chưa đăng nhập', 401);
+                return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
 
             $currentTokenId = $user->currentAccessToken()?->id;
@@ -141,7 +141,7 @@ class AuthServices extends Services
                     'is_current' => (string) $t->id === (string) $currentTokenId,
                 ]);
 
-            return $this->successResponse($tokens, 'Danh sách thiết bị đăng nhập');
+            return $this->successResponse(data: $tokens, message: 'Danh sách thiết bị đăng nhập');
         });
     }
 
@@ -176,12 +176,12 @@ class AuthServices extends Services
         return $this->tryCatch(function () use ($request) {
             $user = $this->getAuthUser($request);
             if (! $user) {
-                return $this->errorResponse('Chưa đăng nhập', 401);
+                return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
 
             $user->tokens()->delete();
 
-            return $this->successResponse(null, 'Đăng xuất tất cả thiết bị thành công');
+            return $this->successResponse(data: null, message: 'Đăng xuất tất cả thiết bị thành công');
         });
     }
 
@@ -193,19 +193,19 @@ class AuthServices extends Services
         return $this->tryCatch(function () use ($request, $tokenId) {
             $user = $this->getAuthUser($request);
             if (! $user) {
-                return $this->errorResponse('Chưa đăng nhập', 401);
+                return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
 
             $token = $user->tokens()->where('id', $tokenId)->first();
 
             if (! $token) {
-                return $this->errorResponse('Thiết bị không tồn tại', 404);
+                return $this->errorResponse(message: 'Thiết bị không tồn tại', code: 404);
             }
 
             $deviceName = $token->name;
             $token->delete();
 
-            return $this->successResponse(null, "Đăng xuất thiết bị {$deviceName} thành công");
+            return $this->successResponse(data: null, message: "Đăng xuất thiết bị {$deviceName} thành công");
         });
     }
 
@@ -263,13 +263,13 @@ class AuthServices extends Services
         return $this->tryCatch(function () use ($request) {
             $user = $this->getAuthUser($request);
             if (! $user) {
-                return $this->errorResponse('Chưa đăng nhập', 401);
+                return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
 
             $data = $request->validated();
 
             if (! Hash::check($data['current_password'], $user->password)) {
-                return $this->errorResponse('Mật khẩu hiện tại không đúng');
+                return $this->errorResponse(message: 'Mật khẩu hiện tại không đúng');
             }
 
             $user->forceFill([

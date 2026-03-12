@@ -6,19 +6,11 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class ChangePasswordRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
         return [
@@ -30,13 +22,13 @@ class ChangePasswordRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'current_password.required' => 'Mat khau hien tai la bat buoc',
-            'current_password.string' => 'Mat khau hien tai khong dung dinh dang',
+            'current_password.required' => 'Mật khẩu hiện tại là bắt buộc.',
+            'current_password.string' => 'Mật khẩu hiện tại không đúng định dạng.',
 
-            'password.required' => 'Mat khau moi la bat buoc',
-            'password.string' => 'Mat khau moi khong dung dinh dang',
-            'password.min' => 'Mat khau moi phai co it nhat :min ky tu',
-            'password.confirmed' => 'Xac nhan mat khau moi khong khop',
+            'password.required' => 'Mật khẩu mới là bắt buộc.',
+            'password.string' => 'Mật khẩu mới không đúng định dạng.',
+            'password.min' => 'Mật khẩu mới phải có ít nhất :min ký tự.',
+            'password.confirmed' => 'Xác nhận mật khẩu mới không khớp.',
         ];
     }
 }
