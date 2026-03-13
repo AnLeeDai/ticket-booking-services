@@ -15,7 +15,7 @@ class CreateMovieRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'gender_id' => 'nullable|uuid|exists:categories,id',
+            'genre_id' => 'nullable|uuid|exists:categories,id',
             'category_ids' => 'required|array|min:1',
             'category_ids.*' => 'uuid|exists:categories,id',
             'title' => 'required|string|max:255',
@@ -38,8 +38,8 @@ class CreateMovieRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'gender_id.uuid' => 'ID thể loại chính không hợp lệ',
-            'gender_id.exists' => 'Thể loại chính không tồn tại',
+            'genre_id.uuid' => 'ID thể loại chính không hợp lệ',
+            'genre_id.exists' => 'Thể loại chính không tồn tại',
 
             'category_ids.required' => 'Thể loại phim không được để trống',
             'category_ids.array' => 'Thể loại phim phải là mảng',

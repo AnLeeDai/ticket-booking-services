@@ -67,6 +67,8 @@ class EmployeeSalaryServices extends Services
     public function store(CreateEmployeeSalaryRequest $request)
     {
         $data = $request->validated();
+        $data['total_earn'] = ($data['net_salary'] ?? 0) + ($data['bonus'] ?? 0);
+
         $employee = Employee::find($data['employee_id']);
 
         if ($employee && ! $this->canAccessCinema($request, $employee->cinema_id)) {
@@ -97,7 +99,15 @@ class EmployeeSalaryServices extends Services
                 return $this->errorResponse(message: 'Không có quyền cập nhật bảng lương này', code: 403);
             }
 
-            $salary->update(array_filter($request->validated(), fn ($v) => ! is_null($v)));
+            $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
+
+            if (isset($data['net_salary']) || isset($data['bonus'])) {
+                $netSalary = $data['net_salary'] ?? $salary->net_salary;
+                $bonus = $data['bonus'] ?? $salary->bonus ?? 0;
+                $data['total_earn'] = $netSalary + $bonus;
+            }
+
+            $salary->update($data);
 
             return $this->successResponse(data: $salary->fresh(), message: 'Cập nhật bảng lương thành công');
         });

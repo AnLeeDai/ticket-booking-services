@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Seat extends Model
@@ -36,8 +37,15 @@ class Seat extends Model
         return $this->belongsTo(Showtime::class, 'showtime_id', 'showtime_id');
     }
 
-    public function ticket(): HasOne
+    public function tickets(): HasMany
     {
-        return $this->hasOne(Ticket::class, 'seat_id', 'seat_id');
+        return $this->hasMany(Ticket::class, 'seat_id', 'seat_id');
+    }
+
+    public function activeTicket(): HasOne
+    {
+        return $this->hasOne(Ticket::class, 'seat_id', 'seat_id')
+            ->whereIn('status', ['IS_PENDING', 'IN_ACTIVE'])
+            ->latest();
     }
 }

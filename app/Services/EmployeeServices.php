@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Http\Requests\CreateEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
 use App\Models\Employee;
+use App\Models\Role;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class EmployeeServices extends Services
 {
@@ -75,9 +77,22 @@ class EmployeeServices extends Services
                 return $this->errorResponse(message: 'Không có quyền thêm nhân viên cho rạp này', code: 403);
             }
 
-            $employee = $this->employeeModel->create(array_merge($data, [
-                'code' => $this->generateCode(),
-            ]));
+            $employee = DB::transaction(function () use ($data) {
+                $employee = $this->employeeModel->create(array_merge($data, [
+                    'code' => $this->generateCode(),
+                ]));
+
+                // Cập nhật role user thành 'employee' nếu user hiện tại là customer
+                $user = $employee->user;
+                if ($user && $user->role?->name === 'customer') {
+                    $employeeRoleId = Role::where('name', 'employee')->value('role_id');
+                    if ($employeeRoleId) {
+                        $user->update(['role_id' => $employeeRoleId]);
+                    }
+                }
+
+                return $employee;
+            });
 
             return $this->successResponse(
                 data: $employee->load([
@@ -134,9 +149,28 @@ class EmployeeServices extends Services
                 return $this->errorResponse(message: 'Không có quyền xoá nhân viên này', code: 403);
             }
 
-            // Clean up salary record if exists
-            $employee->salary?->delete();
-            $employee->delete();
+            DB::transaction(function () use ($employee) {
+                // Clean up salary record if exists
+                $employee->salary?->delete();
+                $employee->delete();
+
+                // Reset role user về 'customer' nếu user không còn là nhân viên ở đâu
+                $user = $employee->user;
+                if ($user && $user->role?->name === 'employee') {
+                    $stillEmployee = $this->employeeModel
+                        ->where('user_id', $user->user_id)
+                        ->where('employee_id', '!=', $employee->employee_id)
+                        ->whereNull('deleted_at')
+                        ->exists();
+
+                    if (! $stillEmployee) {
+                        $customerRoleId = Role::where('name', 'customer')->value('role_id');
+                        if ($customerRoleId) {
+                            $user->update(['role_id' => $customerRoleId]);
+                        }
+                    }
+                }
+            });
 
             return $this->successResponse(data: null, message: 'Xoá nhân viên thành công');
         });

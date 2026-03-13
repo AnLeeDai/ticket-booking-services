@@ -17,7 +17,7 @@ class UpdateMovieRequest extends FormRequest
         $movieId = $this->route('id');
 
         return [
-            'gender_id' => 'nullable|uuid|exists:categories,id',
+            'genre_id' => 'nullable|uuid|exists:categories,id',
             'category_ids' => 'sometimes|required|array|min:1',
             'category_ids.*' => 'uuid|exists:categories,id',
             'title' => 'sometimes|required|string|max:255',
@@ -40,8 +40,8 @@ class UpdateMovieRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'gender_id.uuid' => 'ID thể loại chính không hợp lệ',
-            'gender_id.exists' => 'Thể loại chính không tồn tại',
+            'genre_id.uuid' => 'ID thể loại chính không hợp lệ',
+            'genre_id.exists' => 'Thể loại chính không tồn tại',
 
             'category_ids.array' => 'Thể loại phim phải là mảng',
             'category_ids.min' => 'Phải chọn ít nhất 1 thể loại',

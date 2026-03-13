@@ -322,13 +322,13 @@ class TicketServices extends Services
                     return $this->errorResponse(message: 'Không tìm thấy vé', code: 404);
                 }
 
-                // Customer can only cancel their own ticket
+                // Kiểm tra quyền huỷ vé
                 $user = $request->user();
                 $role = $user->role?->name;
 
                 if ($role === 'admin') {
                     // Admin toàn quyền
-                } elseif ($role === 'manager') {
+                } elseif ($role === 'manager' || $role === 'employee') {
                     if (! $this->canAccessCinema($request, $ticket->showtime?->cinema_id)) {
                         return $this->errorResponse(message: 'Không có quyền huỷ vé này', code: 403);
                     }
@@ -350,13 +350,20 @@ class TicketServices extends Services
                     return $this->errorResponse(message: 'Bạn chỉ có thể huỷ vé đang chờ thanh toán. Vui lòng liên hệ nhân viên để được hỗ trợ');
                 }
 
-                // Release seat
+                // Release seat only if no other active ticket holds it
                 $seat = Seat::where('seat_id', $ticket->seat_id)->lockForUpdate()->first();
-                if ($seat) {
-                    $seat->update([
-                        'active' => 'IN_ACTIVE',
-                        'hold_until' => null,
-                    ]);
+                if ($seat && in_array($seat->active, ['HOLD', 'SOLD'])) {
+                    $otherActive = Ticket::where('seat_id', $ticket->seat_id)
+                        ->where('ticket_id', '!=', $ticket->ticket_id)
+                        ->whereIn('status', ['IS_PENDING', 'IN_ACTIVE'])
+                        ->exists();
+
+                    if (! $otherActive) {
+                        $seat->update([
+                            'active' => 'IN_ACTIVE',
+                            'hold_until' => null,
+                        ]);
+                    }
                 }
 
                 // Restore combo stock
@@ -431,13 +438,20 @@ class TicketServices extends Services
                     return;
                 }
 
-                // Release seat
+                // Release seat only if HOLD and no other active ticket holds it
                 $seat = Seat::where('seat_id', $fresh->seat_id)->lockForUpdate()->first();
-                if ($seat && in_array($seat->active, ['HOLD', 'SOLD'])) {
-                    $seat->update([
-                        'active' => 'IN_ACTIVE',
-                        'hold_until' => null,
-                    ]);
+                if ($seat && $seat->active === 'HOLD') {
+                    $otherActive = Ticket::where('seat_id', $fresh->seat_id)
+                        ->where('ticket_id', '!=', $fresh->ticket_id)
+                        ->whereIn('status', ['IS_PENDING', 'IN_ACTIVE'])
+                        ->exists();
+
+                    if (! $otherActive) {
+                        $seat->update([
+                            'active' => 'IN_ACTIVE',
+                            'hold_until' => null,
+                        ]);
+                    }
                 }
 
                 // Restore combo stock

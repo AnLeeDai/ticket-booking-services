@@ -20,7 +20,6 @@ class CreateEmployeeSalaryRequest extends FormRequest
             'bank_name' => 'required|string|max:255',
             'net_salary' => 'required|numeric|min:0',
             'bonus' => 'nullable|numeric|min:0',
-            'total_earn' => 'required|numeric|min:0',
             'payment_status' => ['nullable', Rule::in(['IS_PENDING', 'IN_ACTIVE', 'UN_ACTIVE'])],
         ];
     }
@@ -40,9 +39,6 @@ class CreateEmployeeSalaryRequest extends FormRequest
             'net_salary.numeric' => 'Lương ròng phải là số',
 
             'bonus.numeric' => 'Thưởng phải là số',
-
-            'total_earn.required' => 'Tổng thu nhập không được để trống',
-            'total_earn.numeric' => 'Tổng thu nhập phải là số',
 
             'payment_status.in' => 'Trạng thái thanh toán không hợp lệ. Chọn: IS_PENDING, IN_ACTIVE, UN_ACTIVE',
         ];

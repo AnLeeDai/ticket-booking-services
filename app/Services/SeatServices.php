@@ -35,7 +35,7 @@ class SeatServices extends Services
             id: $id,
             relations: [
                 'showtime:showtime_id,cinema_id,movie_id,starts_at,ends_at,screen_type',
-                'ticket',
+                'activeTicket',
             ],
             message: 'Lấy thông tin ghế thành công',
             notFoundMessage: 'Không tìm thấy ghế',

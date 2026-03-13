@@ -9,12 +9,13 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Bỏ unique trên seat_id (cho phép đặt lại ghế sau khi huỷ vé)
+        // MySQL yêu cầu drop FK trước khi drop unique index được FK sử dụng
         Schema::table('tickets', function (Blueprint $table) {
+            $table->dropForeign(['seat_id']);
             $table->dropUnique(['seat_id']);
-
-            // Thêm index thường cho seat_id (FK vẫn giữ)
             $table->index('seat_id');
-            // Index cho query thường xuyên
+            $table->foreign('seat_id')->references('seat_id')->on('seats')->onDelete('cascade');
+
             $table->index('user_id');
             $table->index('status');
         });
@@ -28,10 +29,12 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('tickets', function (Blueprint $table) {
+            $table->dropForeign(['seat_id']);
             $table->dropIndex(['seat_id']);
             $table->dropIndex(['user_id']);
             $table->dropIndex(['status']);
             $table->unique('seat_id');
+            $table->foreign('seat_id')->references('seat_id')->on('seats')->onDelete('cascade');
         });
 
         Schema::table('payments', function (Blueprint $table) {

@@ -20,7 +20,7 @@ class Movie extends Model
     public $incrementing = false;
 
     protected $fillable = [
-        'gender_id',
+        'genre_id',
         'code',
         'title',
         'name',
@@ -47,9 +47,9 @@ class Movie extends Model
         'gallery' => 'array',
     ];
 
-    public function gender(): BelongsTo
+    public function genre(): BelongsTo
     {
-        return $this->belongsTo(Category::class, 'gender_id', 'id');
+        return $this->belongsTo(Category::class, 'genre_id', 'id');
     }
 
     public function categories(): BelongsToMany

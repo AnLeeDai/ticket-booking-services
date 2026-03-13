@@ -122,10 +122,12 @@ class ShowtimeServices extends Services
                 return $this->errorResponse(message: 'Không có quyền xoá suất chiếu này', code: 403);
             }
 
-            $ticketCount = $showtime->tickets()->count();
+            $ticketCount = $showtime->tickets()
+                ->whereIn('status', ['IS_PENDING', 'IN_ACTIVE'])
+                ->count();
             if ($ticketCount > 0) {
                 return $this->errorResponse(
-                    message: "Không thể xoá suất chiếu đang có {$ticketCount} vé đã đặt",
+                    message: "Không thể xoá suất chiếu đang có {$ticketCount} vé chưa xử lý",
                 );
             }
 
