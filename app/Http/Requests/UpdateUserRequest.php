@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
+
+class UpdateUserRequest extends FormRequest
+{
+    public function authorize(): bool
+    {
+        return true;
+    }
+
+    public function rules(): array
+    {
+        $userId = $this->route('id');
+
+        return [
+            'full_name' => 'sometimes|string|max:255',
+            'user_name' => [
+                'sometimes',
+                'string',
+                'max:50',
+                Rule::unique('users', 'user_name')->ignore($userId, 'user_id'),
+            ],
+            'phone' => [
+                'sometimes',
+                'nullable',
+                'string',
+                'max:20',
+                Rule::unique('users', 'phone')->ignore($userId, 'user_id'),
+            ],
+            'role_id' => 'sometimes|uuid|exists:roles,role_id',
+            'status' => ['sometimes', Rule::in(['IN_ACTIVE', 'UN_ACTIVE'])],
+            'dob' => 'sometimes|nullable|date',
+            'address' => 'sometimes|nullable|string|max:255',
+            'avatar_url' => 'sometimes|nullable|url|max:500',
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'full_name.string' => 'Họ tên không đúng định dạng.',
+            'full_name.max' => 'Họ tên không được vượt quá :max ký tự.',
+
+            'user_name.string' => 'Tên đăng nhập phải là chuỗi ký tự.',
+            'user_name.max' => 'Tên đăng nhập không được vượt quá :max ký tự.',
+            'user_name.unique' => 'Tên đăng nhập đã tồn tại.',
+
+            'phone.string' => 'Số điện thoại không đúng định dạng.',
+            'phone.max' => 'Số điện thoại không được vượt quá :max ký tự.',
+            'phone.unique' => 'Số điện thoại đã tồn tại.',
+
+            'role_id.uuid' => 'ID vai trò không hợp lệ.',
+            'role_id.exists' => 'Vai trò không tồn tại.',
+
+            'status.in' => 'Trạng thái không hợp lệ. Chọn: IN_ACTIVE, UN_ACTIVE.',
+
+            'dob.date' => 'Ngày sinh không đúng định dạng.',
+
+            'address.string' => 'Địa chỉ không đúng định dạng.',
+            'address.max' => 'Địa chỉ không được vượt quá :max ký tự.',
+
+            'avatar_url.url' => 'URL ảnh đại diện không hợp lệ.',
+            'avatar_url.max' => 'URL ảnh đại diện không được vượt quá :max ký tự.',
+        ];
+    }
+}

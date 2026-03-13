@@ -18,6 +18,7 @@ class CreateCinemaRequest extends FormRequest
             'name' => 'required|string|max:255',
             'location' => 'required|string|max:500',
             'active' => ['nullable', Rule::in(['IN_ACTIVE', 'UN_ACTIVE'])],
+            'manager_id' => 'nullable|uuid|exists:users,user_id',
         ];
     }
 
@@ -29,6 +30,8 @@ class CreateCinemaRequest extends FormRequest
             'location.required' => 'Địa chỉ rạp không được để trống',
             'location.max' => 'Địa chỉ rạp không được vượt quá 500 ký tự',
             'active.in' => 'Trạng thái không hợp lệ. Chọn: IN_ACTIVE, UN_ACTIVE',
+            'manager_id.uuid' => 'ID quản lý không hợp lệ',
+            'manager_id.exists' => 'Người quản lý không tồn tại',
         ];
     }
 }

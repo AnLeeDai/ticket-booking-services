@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Showtime extends Model
 {
@@ -37,5 +38,15 @@ class Showtime extends Model
     public function movie(): BelongsTo
     {
         return $this->belongsTo(Movie::class, 'movie_id', 'movie_id');
+    }
+
+    public function seats(): HasMany
+    {
+        return $this->hasMany(Seat::class, 'showtime_id', 'showtime_id');
+    }
+
+    public function tickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'showtime_id', 'showtime_id');
     }
 }

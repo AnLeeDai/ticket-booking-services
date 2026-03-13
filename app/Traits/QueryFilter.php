@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Http\Request;
 
 /**
@@ -73,7 +74,9 @@ trait QueryFilter
         try {
             return $callback();
         } catch (\Throwable $e) {
-            return $this->serverErrorResponse(description: $e->getMessage());
+            $description = app()->isProduction() ? '' : $e->getMessage();
+
+            return $this->serverErrorResponse(description: $description);
         }
     }
 
@@ -270,6 +273,12 @@ trait QueryFilter
         $dateTo = $request->query('date_to');
         $dateColumn = $request->query('date_column', 'created_at');
 
+        // Whitelist date columns to prevent arbitrary column access
+        $allowedDateColumns = ['created_at', 'updated_at', 'deleted_at', 'release_date', 'end_date', 'starts_at', 'ends_at', 'hire_date', 'sale_date', 'dob', 'hold_until'];
+        if (! in_array($dateColumn, $allowedDateColumns, true)) {
+            $dateColumn = 'created_at';
+        }
+
         if ($dateFrom) {
             $builder->whereDate($dateColumn, '>=', $dateFrom);
         }
@@ -294,7 +303,7 @@ trait QueryFilter
         }
 
         $usesSoftDelete = in_array(
-            \Illuminate\Database\Eloquent\SoftDeletes::class,
+            SoftDeletes::class,
             class_uses_recursive($builder->getModel())
         );
 

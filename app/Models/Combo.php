@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class Combo extends Model
 {
@@ -25,4 +26,10 @@ class Combo extends Model
         'price' => 'decimal:0',
         'stock' => 'integer',
     ];
+
+    public function tickets(): BelongsToMany
+    {
+        return $this->belongsToMany(Ticket::class, 'ticket_combos', 'combo_id', 'ticket_id')
+            ->withPivot('qty');
+    }
 }

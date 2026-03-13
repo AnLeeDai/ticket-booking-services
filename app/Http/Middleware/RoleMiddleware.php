@@ -2,12 +2,15 @@
 
 namespace App\Http\Middleware;
 
+use App\Traits\JsonResponse;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class RoleMiddleware
 {
+    use JsonResponse;
+
     /**
      * Handle an incoming request.
      *
@@ -18,19 +21,13 @@ class RoleMiddleware
         $user = $request->user();
 
         if (! $user) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Chưa đăng nhập',
-            ], 401);
+            return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
         }
 
         $role = $user->role?->name;
 
         if (! $role || ! in_array($role, $roles, true)) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Không có quyền truy cập',
-            ], 403);
+            return $this->errorResponse(message: 'Không có quyền truy cập', code: 403);
         }
 
         return $next($request);

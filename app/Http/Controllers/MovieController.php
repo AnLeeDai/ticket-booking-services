@@ -33,8 +33,8 @@ class MovieController extends Controller
         return $this->movieServices->update($request, $id);
     }
 
-    // public function destroy(string $id)
-    // {
-    //     return $this->movieServices->destroy($id);
-    // }
+    public function destroy(string $id)
+    {
+        return $this->movieServices->destroy($id);
+    }
 }
