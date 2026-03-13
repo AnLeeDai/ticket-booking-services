@@ -1,0 +1,1945 @@
+================================================================================
+         HỆ THỐNG ĐẶT VÉ XEM PHIM - TICKET BOOKING SERVICES
+                    LOGIC NGHIỆP VỤ & API ENDPOINTS
+================================================================================
+Base URL: http://localhost/api
+Auth: Bearer Token (Laravel Sanctum)
+Mật khẩu test: Password@123
+
+Tài khoản test:
+  - Admin:    admin@ticketbooking.com
+  - Manager:  manager1@ticketbooking.com → manager8@ticketbooking.com
+  - Employee: employee1@ticketbooking.com → employee20@ticketbooking.com
+  - Customer: customer1@gmail.com → customer50@gmail.com
+
+================================================================================
+                          HỆ THỐNG PHÂN QUYỀN (RBAC)
+================================================================================
+
+4 vai trò (roles): admin, manager, employee, customer
+
+Phân quyền theo route:
+  - Public (không cần đăng nhập): login, register, forgot-password, reset-password,
+    xem danh sách categories/movies/combos/cinemas/showtimes/seats
+  - auth:sanctum (đã đăng nhập): logout, profile, đặt vé, huỷ vé, xem vé của mình
+  - role:admin: quản lý users, tạo/xoá cinemas, CRUD categories/movies/combos/employee-roles
+  - role:admin,manager: CRUD showtimes/seats/employees/salaries/cinema-sales, cập nhật cinemas,
+    xem tickets/payments, xác nhận thanh toán
+  - role:admin,manager,employee: xác nhận thanh toán vé
+
+Middleware RoleMiddleware: Kiểm tra role của user hiện tại có nằm trong danh sách
+role cho phép hay không. Trả 403 nếu không có quyền.
+
+Logic phân quyền theo cinema:
+  - Admin: truy cập tất cả rạp (getManagedCinemaIds trả về null = toàn quyền)
+  - Manager: chỉ truy cập các rạp mình quản lý (managedCinemas)
+  - Employee: chỉ truy cập rạp mình làm việc (employee.cinema_id)
+
+================================================================================
+                        QUERY FILTER (ÁP DỤNG CHO TẤT CẢ GET LIST)
+================================================================================
+
+Tất cả API GET danh sách đều hỗ trợ các query params sau:
+
+  ?search=keyword               Tìm kiếm LIKE trên các trường searchable
+  ?{field}=value                Lọc chính xác theo trường
+  ?{field}=val1,val2            Lọc WHERE IN (nhiều giá trị)
+  ?sort_by=name&sort_order=asc  Sắp xếp (mặc định: created_at DESC)
+  ?per_page=20&page=2           Phân trang (mặc định 15, tối đa 100)
+  ?fields=id,name               Chọn cột trả về
+  ?date_from=2026-01-01         Lọc từ ngày
+  ?date_to=2026-12-31           Lọc đến ngày
+  ?date_column=release_date     Cột ngày để lọc (mặc định: created_at)
+  ?is_null=field                Lọc cột IS NULL
+  ?not_null=field               Lọc cột IS NOT NULL
+  ?trashed=only                 Chỉ bản ghi đã xoá mềm
+  ?trashed=with                 Bao gồm bản ghi đã xoá mềm
+
+Format response phân trang:
+{
+  "success": true,
+  "message": "...",
+  "data": {
+    "items": [...],
+    "pagination": {
+      "current_page": 1,
+      "per_page": 15,
+      "total": 100,
+      "last_page": 7,
+      "has_more": true
+    }
+  }
+}
+
+================================================================================
+                          1. XÁC THỰC (AUTH)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Đăng nhập bằng email + password, trả về Bearer token (Sanctum)
+- Mỗi device_name chỉ có 1 token (xoá token cũ trước khi tạo mới)
+- Đăng ký tự động gán role "customer", gửi email thông báo
+- user_name tự generate từ email nếu không truyền (đảm bảo unique)
+- Tài khoản UN_ACTIVE không thể đăng nhập (403)
+- Forgot password gửi reset link qua email, throttle 1 phút
+- Reset password xoá tất cả token (buộc đăng nhập lại)
+- Đổi mật khẩu xoá tất cả token (buộc đăng nhập lại)
+- Rate limit: 5 request/phút cho login, register, forgot, reset
+- Quản lý đa thiết bị: xem danh sách, đăng xuất từng thiết bị
+
+--- API ---
+
+1.1. POST /api/login
+     Auth: Không
+     Rate limit: 5/phút
+     Body:
+     {
+       "email": "admin@ticketbooking.com",
+       "password": "Password@123",
+       "device_name": "Postman"
+     }
+
+1.2. POST /api/register
+     Auth: Không
+     Rate limit: 5/phút
+     Body:
+     {
+       "full_name": "Nguyễn Văn Test",
+       "email": "test_user@gmail.com",
+       "password": "Password@123",
+       "password_confirmation": "Password@123",
+       "user_name": "test_user",
+       "phone": "0901234567",
+       "dob": "2000-05-15",
+       "address": "Quận 1, TP.HCM",
+       "device_name": "Postman"
+     }
+
+1.3. POST /api/forgot-password
+     Auth: Không
+     Rate limit: 5/phút
+     Body:
+     {
+       "email": "customer1@gmail.com"
+     }
+
+1.4. POST /api/reset-password
+     Auth: Không
+     Rate limit: 5/phút
+     Body:
+     {
+       "token": "reset-token-from-email",
+       "email": "customer1@gmail.com",
+       "password": "NewPassword@123",
+       "password_confirmation": "NewPassword@123"
+     }
+
+1.5. POST /api/auth/logout
+     Auth: Bearer Token
+     Body: (không cần)
+
+1.6. POST /api/auth/logout-all-devices
+     Auth: Bearer Token
+     Body: (không cần)
+
+1.7. POST /api/auth/logout/{tokenId}/device
+     Auth: Bearer Token
+     Params: tokenId = ID của token thiết bị (lấy từ API devices)
+
+1.8. GET /api/auth/devices
+     Auth: Bearer Token
+     Response: Danh sách thiết bị đang đăng nhập, thiết bị hiện tại đánh dấu is_current
+
+1.9. POST /api/auth/change-password
+     Auth: Bearer Token
+     Body:
+     {
+       "current_password": "Password@123",
+       "password": "NewPassword@123",
+       "password_confirmation": "NewPassword@123"
+     }
+
+================================================================================
+                          2. NGƯỜI DÙNG (USERS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Admin xem/sửa/xoá tất cả user
+- Mọi user đã đăng nhập xem/sửa profile của mình
+- Không thể xoá tài khoản admin
+- Không thể xoá user đang là nhân viên (phải xoá employee trước)
+- Không thể xoá user đang có vé IS_PENDING hoặc IN_ACTIVE
+- Xoá user sẽ xoá tất cả token (đăng xuất)
+- Admin có thể thay đổi role_id, status của user
+
+--- API ---
+
+2.1. GET /api/users/profile
+     Auth: Bearer Token (tất cả role)
+     Query: (không)
+
+2.2. PUT /api/users/profile
+     Auth: Bearer Token (tất cả role)
+     Body:
+     {
+       "full_name": "Nguyễn Văn Mới",
+       "user_name": "new_username",
+       "phone": "0909876543",
+       "dob": "1995-03-20",
+       "address": "Quận 7, TP.HCM",
+       "avatar_url": "https://example.com/avatar.jpg"
+     }
+
+2.3. GET /api/users
+     Auth: Bearer Token (admin)
+     Query: ?search=keyword&sort_by=full_name&sort_order=asc&per_page=10&page=1
+
+2.4. PUT /api/users/{id}
+     Auth: Bearer Token (admin)
+     Params: id = user_id (UUID)
+     Body:
+     {
+       "full_name": "Tên mới",
+       "status": "UN_ACTIVE",
+       "role_id": "uuid-of-role"
+     }
+
+2.5. DELETE /api/users/{id}
+     Auth: Bearer Token (admin)
+     Params: id = user_id (UUID)
+
+================================================================================
+                          3. DANH MỤC / THỂ LOẠI (CATEGORIES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết: công khai, không cần đăng nhập
+- Tạo/sửa/xoá: chỉ admin
+- Slug tự generate từ name (Str::slug), kiểm tra trùng slug
+- Không thể xoá danh mục đang được gắn với phim (kiểm tra qua pivot category_movie)
+
+--- API ---
+
+3.1. GET /api/categories
+     Auth: Không
+     Query: ?search=hành+động&sort_by=name&sort_order=asc&per_page=20
+
+3.2. GET /api/categories/{id}
+     Auth: Không
+     Params: id = category ID (UUID)
+
+3.3. POST /api/categories
+     Auth: Bearer Token (admin)
+     Body:
+     {
+       "name": "Viễn Tây",
+       "description": "Phim cao bồi miền viễn tây"
+     }
+
+3.4. PUT /api/categories/{id}
+     Auth: Bearer Token (admin)
+     Params: id = category ID (UUID)
+     Body:
+     {
+       "name": "Viễn Tây Updated",
+       "description": "Mô tả mới"
+     }
+
+3.5. DELETE /api/categories/{id}
+     Auth: Bearer Token (admin)
+     Params: id = category ID (UUID)
+
+================================================================================
+                          4. PHIM (MOVIES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết: công khai
+- Tạo/sửa/xoá: chỉ admin
+- Mỗi phim có nhiều thể loại (many-to-many qua category_movie)
+- genre_id: thể loại chính (nullable), category_ids: danh sách thể loại
+- Slug tự generate từ name, kiểm tra trùng slug
+- Code tự generate format: MV-YYYYMM-XXXX
+- Trạng thái: IN_ACTIVE (đang chiếu), IS_PENDING (sắp chiếu), UN_ACTIVE (ngừng chiếu)
+- Không thể xoá phim đang có suất chiếu chưa kết thúc (ends_at > now)
+- Xoá phim sẽ detach categories và soft delete
+- Gallery là mảng URL ảnh
+
+--- API ---
+
+4.1. GET /api/movies
+     Auth: Không
+     Query: ?search=avengers&sort_by=rating&sort_order=desc&per_page=10
+
+4.2. GET /api/movies/{id}
+     Auth: Không
+     Params: id = movie_id (UUID)
+
+4.3. POST /api/movies
+     Auth: Bearer Token (admin)
+     Body:
+     {
+       "title": "Spider-Man: No Way Home 2",
+       "name": "Spider Man No Way Home 2",
+       "description": "Phần tiếp theo của Spider-Man",
+       "thumb_url": "https://example.com/spiderman.jpg",
+       "trailer_url": "https://youtube.com/watch?v=abc123",
+       "gallery": [
+         "https://example.com/img1.jpg",
+         "https://example.com/img2.jpg"
+       ],
+       "duration": 150,
+       "language": "Tiếng Anh - Phụ đề Việt",
+       "age": 13,
+       "rating": 8.5,
+       "release_date": "2026-04-01",
+       "end_date": "2026-06-01",
+       "status": "IS_PENDING",
+       "genre_id": "uuid-of-category",
+       "category_ids": [
+         "uuid-category-1",
+         "uuid-category-2"
+       ]
+     }
+
+4.4. PUT /api/movies/{id}
+     Auth: Bearer Token (admin)
+     Params: id = movie_id (UUID)
+     Body:
+     {
+       "title": "Spider-Man Updated",
+       "rating": 9.0,
+       "status": "IN_ACTIVE",
+       "category_ids": ["uuid-1", "uuid-2", "uuid-3"]
+     }
+
+4.5. DELETE /api/movies/{id}
+     Auth: Bearer Token (admin)
+     Params: id = movie_id (UUID)
+
+================================================================================
+                          5. COMBO ĐỒ ĂN/UỐNG (COMBOS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết: công khai
+- Tạo/sửa/xoá: chỉ admin
+- Tên combo unique
+- stock: số lượng tồn kho (nullable = không giới hạn)
+- Không thể xoá combo đang được sử dụng trong vé IS_PENDING hoặc IN_ACTIVE
+- Khi đặt vé có combo: kiểm tra stock >= qty, trừ stock
+- Khi huỷ vé: hoàn lại stock
+
+--- API ---
+
+5.1. GET /api/combos
+     Auth: Không
+     Query: ?search=bắp&sort_by=price&sort_order=asc
+
+5.2. GET /api/combos/{id}
+     Auth: Không
+     Params: id = combo_id (UUID)
+
+5.3. POST /api/combos
+     Auth: Bearer Token (admin)
+     Body:
+     {
+       "name": "Combo Mega",
+       "price": 179000,
+       "stock": 200
+     }
+
+5.4. PUT /api/combos/{id}
+     Auth: Bearer Token (admin)
+     Params: id = combo_id (UUID)
+     Body:
+     {
+       "name": "Combo Mega Plus",
+       "price": 199000,
+       "stock": 150
+     }
+
+5.5. DELETE /api/combos/{id}
+     Auth: Bearer Token (admin)
+     Params: id = combo_id (UUID)
+
+================================================================================
+                          6. RẠP CHIẾU PHIM (CINEMAS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết: công khai
+- Tạo/xoá: chỉ admin
+- Cập nhật: admin hoặc manager (manager không được đổi manager_id, active)
+- Code tự generate format: CN-XXXXXX
+- Trạng thái: IN_ACTIVE (hoạt động), UN_ACTIVE (bảo trì/đóng cửa)
+- manager_id: user_id của manager quản lý rạp
+- Không thể xoá rạp đang có suất chiếu chưa kết thúc
+- Không thể xoá rạp đang có nhân viên
+
+--- API ---
+
+6.1. GET /api/cinemas
+     Auth: Không
+     Query: ?search=CGV&sort_by=name&sort_order=asc&per_page=10
+
+6.2. GET /api/cinemas/{id}
+     Auth: Không
+     Params: id = cinema_id (UUID)
+
+6.3. POST /api/cinemas
+     Auth: Bearer Token (admin)
+     Body:
+     {
+       "name": "CGV Sala",
+       "location": "Tầng 3, Sala, Quận 2, TP.HCM",
+       "active": "IN_ACTIVE",
+       "manager_id": "uuid-of-manager-user"
+     }
+
+6.4. PUT /api/cinemas/{id}
+     Auth: Bearer Token (admin hoặc manager)
+     Params: id = cinema_id (UUID)
+     Body (admin):
+     {
+       "name": "CGV Sala Updated",
+       "location": "Địa chỉ mới",
+       "active": "UN_ACTIVE",
+       "manager_id": "uuid-of-new-manager"
+     }
+     Body (manager - chỉ được sửa name, location):
+     {
+       "name": "CGV Sala Updated",
+       "location": "Địa chỉ mới"
+     }
+
+6.5. DELETE /api/cinemas/{id}
+     Auth: Bearer Token (admin)
+     Params: id = cinema_id (UUID)
+
+================================================================================
+                          7. SUẤT CHIẾU (SHOWTIMES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết: công khai
+- Tạo/sửa/xoá: admin hoặc manager
+- Kiểm tra trùng lịch chiếu tại cùng rạp (overlap detection):
+  starts_at < endsAt AND ends_at > startsAt
+- Manager chỉ tạo/sửa/xoá suất chiếu tại rạp mình quản lý
+- Khi tạo: starts_at phải > now (không tạo suất chiếu quá khứ)
+- Khi sửa: cho phép sửa starts_at quá khứ (không validate after:now)
+- Không thể xoá suất chiếu đang có vé IS_PENDING hoặc IN_ACTIVE
+- Xoá suất chiếu sẽ xoá tất cả ghế của suất đó
+- screen_type: 2D hoặc 3D
+
+--- API ---
+
+7.1. GET /api/showtimes
+     Auth: Không
+     Query: ?cinema_id=uuid&movie_id=uuid&screen_type=2D
+            &sort_by=starts_at&sort_order=asc&per_page=20
+            &date_from=2026-03-13&date_to=2026-03-20&date_column=starts_at
+
+7.2. GET /api/showtimes/{id}
+     Auth: Không
+     Params: id = showtime_id (UUID)
+
+7.3. POST /api/showtimes
+     Auth: Bearer Token (admin, manager)
+     Body:
+     {
+       "cinema_id": "uuid-of-cinema",
+       "movie_id": "uuid-of-movie",
+       "starts_at": "2026-03-20 19:00:00",
+       "ends_at": "2026-03-20 21:30:00",
+       "screen_type": "2D"
+     }
+
+7.4. PUT /api/showtimes/{id}
+     Auth: Bearer Token (admin, manager)
+     Params: id = showtime_id (UUID)
+     Body:
+     {
+       "starts_at": "2026-03-20 20:00:00",
+       "ends_at": "2026-03-20 22:30:00",
+       "screen_type": "3D"
+     }
+
+7.5. DELETE /api/showtimes/{id}
+     Auth: Bearer Token (admin, manager)
+     Params: id = showtime_id (UUID)
+
+================================================================================
+                          8. GHẾ NGỒI (SEATS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem danh sách/chi tiết/theo suất chiếu: công khai
+- Tạo/sửa/xoá: admin hoặc manager
+- seat_code: mã ghế (VD: A1, B5, G3), unique trong cùng showtime
+- seat_type: NORMAL, VIP, COUPLE
+- active: IN_ACTIVE (trống), HOLD (đang giữ), SOLD (đã bán), UN_ACTIVE (không dùng)
+- hold_until: thời điểm hết giữ ghế
+- Ghế HOLD hết hạn tự động chuyển IN_ACTIVE (releaseExpiredHolds)
+- Không thể xoá ghế SOLD
+- Không thể xoá ghế HOLD chưa hết hạn
+- Tạo bulk: tạo nhiều ghế 1 lần cho 1 suất chiếu
+- Manager chỉ thao tác ghế thuộc rạp mình quản lý
+
+--- API ---
+
+8.1. GET /api/seats
+     Auth: Không
+     Query: ?showtime_id=uuid&seat_type=VIP&active=IN_ACTIVE
+            &sort_by=seat_code&sort_order=asc&per_page=100
+
+8.2. GET /api/seats/{id}
+     Auth: Không
+     Params: id = seat_id (UUID)
+
+8.3. GET /api/seats/showtime/{showtimeId}
+     Auth: Không
+     Params: showtimeId = showtime_id (UUID)
+     Query: ?seat_type=VIP&active=IN_ACTIVE&sort_by=seat_code
+     Note: Tự động giải phóng ghế HOLD hết hạn trước khi trả kết quả
+
+8.4. POST /api/seats
+     Auth: Bearer Token (admin, manager)
+     Body:
+     {
+       "showtime_id": "uuid-of-showtime",
+       "seat_code": "H1",
+       "seat_type": "VIP",
+       "price": 120000,
+       "active": "IN_ACTIVE"
+     }
+
+8.5. POST /api/seats/bulk
+     Auth: Bearer Token (admin, manager)
+     Body:
+     {
+       "showtime_id": "uuid-of-showtime",
+       "seats": [
+         {"seat_code": "H1", "seat_type": "NORMAL", "price": 75000},
+         {"seat_code": "H2", "seat_type": "NORMAL", "price": 75000},
+         {"seat_code": "H3", "seat_type": "VIP", "price": 120000},
+         {"seat_code": "H4", "seat_type": "VIP", "price": 120000},
+         {"seat_code": "H5", "seat_type": "COUPLE", "price": 200000}
+       ]
+     }
+
+8.6. PUT /api/seats/{id}
+     Auth: Bearer Token (admin, manager)
+     Params: id = seat_id (UUID)
+     Body:
+     {
+       "seat_code": "H1-NEW",
+       "seat_type": "VIP",
+       "price": 150000,
+       "active": "UN_ACTIVE",
+       "hold_until": "2026-03-13 20:00:00"
+     }
+
+8.7. DELETE /api/seats/{id}
+     Auth: Bearer Token (admin, manager)
+     Params: id = seat_id (UUID)
+
+================================================================================
+                          9. ĐẶT VÉ (TICKETS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+
+Luồng đặt vé:
+  1. Customer chọn suất chiếu → xem ghế trống
+  2. POST /api/tickets/book → ghế chuyển HOLD, vé IS_PENDING, payment IS_PENDING
+  3. Có 15 phút để thanh toán
+  4. Nhân viên/manager/admin xác nhận: POST /api/tickets/{id}/confirm-payment
+     → vé IN_ACTIVE, ghế SOLD, payment IN_ACTIVE
+  5. Quá 15 phút không thanh toán → job tự động huỷ vé
+     (artisan command: tickets:cancel-expired, chạy mỗi phút)
+
+Trạng thái vé: IS_PENDING (chờ thanh toán), IN_ACTIVE (đã thanh toán), UN_ACTIVE (đã huỷ)
+
+Đặt vé (bookTicket):
+  - Kiểm tra ghế tồn tại và thuộc đúng suất chiếu
+  - Kiểm tra suất chiếu chưa bắt đầu (starts_at > now)
+  - Kiểm tra phim đang hoạt động (IN_ACTIVE)
+  - Kiểm tra rạp đang hoạt động (IN_ACTIVE)
+  - Kiểm tra ghế: không phải SOLD, không phải HOLD chưa hết hạn, không UN_ACTIVE
+  - Kiểm tra combo: tồn tại, stock đủ
+  - Tính tổng giá = giá ghế + tổng combo (price × qty)
+  - Ghế chuyển HOLD + hold_until = now + 15 phút
+  - Sử dụng lockForUpdate (pessimistic locking) tránh race condition
+  - Rate limit: throttle:booking
+
+Xác nhận thanh toán (confirmPayment):
+  - Chỉ vé IS_PENDING mới được xác nhận
+  - Admin/manager/employee thuộc rạp đó mới có quyền
+  - Vé → IN_ACTIVE, payment → IN_ACTIVE, ghế → SOLD
+
+Huỷ vé (cancelTicket):
+  - Admin: huỷ mọi vé
+  - Manager/employee: huỷ vé thuộc rạp mình quản lý/làm việc
+  - Customer: chỉ huỷ vé của mình, chỉ khi IS_PENDING
+  - Không thể huỷ vé đã huỷ (UN_ACTIVE)
+  - Không thể huỷ khi suất chiếu đã bắt đầu
+  - Huỷ vé: ghế chuyển IN_ACTIVE (nếu không có vé active khác trên ghế đó)
+  - Hoàn stock combo
+
+Tự động huỷ vé hết hạn (cancelExpiredPendingTickets):
+  - Vé IS_PENDING và created_at < now - 15 phút
+  - Hoàn ghế, hoàn stock combo, vé+payment → UN_ACTIVE
+
+--- API ---
+
+9.1. GET /api/tickets
+     Auth: Bearer Token (admin, manager)
+     Query: ?status=IN_ACTIVE&movie_id=uuid&showtime_id=uuid&user_id=uuid
+            &search=TK-&sort_by=created_at&sort_order=desc&per_page=20
+
+9.2. GET /api/tickets/{id}
+     Auth: Bearer Token (admin, manager)
+     Params: id = ticket_id (UUID)
+
+9.3. GET /api/tickets/my-tickets
+     Auth: Bearer Token (tất cả role)
+     Query: ?status=IN_ACTIVE&sort_by=created_at&sort_order=desc&per_page=10
+
+9.4. POST /api/tickets/book
+     Auth: Bearer Token (tất cả role)
+     Rate limit: throttle:booking
+     Body (không combo):
+     {
+       "showtime_id": "uuid-of-showtime",
+       "seat_id": "uuid-of-seat",
+       "payment_method": "TRANSFER"
+     }
+     Body (có combo):
+     {
+       "showtime_id": "uuid-of-showtime",
+       "seat_id": "uuid-of-seat",
+       "payment_method": "CARD",
+       "combos": [
+         {"combo_id": "uuid-combo-1", "qty": 1},
+         {"combo_id": "uuid-combo-2", "qty": 2}
+       ]
+     }
+     payment_method: TRANSFER | CARD | CASH
+
+9.5. POST /api/tickets/{id}/confirm-payment
+     Auth: Bearer Token (admin, manager, employee)
+     Params: id = ticket_id (UUID)
+     Body: (không cần)
+
+9.6. POST /api/tickets/{id}/cancel
+     Auth: Bearer Token (tất cả role)
+     Params: id = ticket_id (UUID)
+     Body: (không cần)
+
+================================================================================
+                          10. THANH TOÁN (PAYMENTS)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Chỉ xem, không có API tạo/sửa/xoá (payment được tạo tự động khi đặt vé)
+- Admin xem tất cả, manager xem payment thuộc rạp mình quản lý
+- Trạng thái: IS_PENDING, IN_ACTIVE (đã thanh toán), UN_ACTIVE (đã huỷ)
+- method: TRANSFER, CARD, CASH
+- amount: số tiền thanh toán = giá vé + combo
+
+--- API ---
+
+10.1. GET /api/payments
+      Auth: Bearer Token (admin, manager)
+      Query: ?method=TRANSFER&status=IN_ACTIVE
+             &sort_by=created_at&sort_order=desc&per_page=20
+
+10.2. GET /api/payments/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = payment_id (UUID)
+
+================================================================================
+                          11. VAI TRÒ NHÂN VIÊN (EMPLOYEE ROLES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem: admin hoặc manager
+- Tạo/sửa/xoá: chỉ admin
+- 2 loại: STAFF (nhân viên chính thức), PROBATION (thử việc)
+- Không thể xoá vai trò đang được gán cho nhân viên
+
+--- API ---
+
+11.1. GET /api/employee-roles
+      Auth: Bearer Token (admin, manager)
+      Query: ?search=STAFF&per_page=10
+
+11.2. GET /api/employee-roles/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_role_id (UUID)
+
+11.3. POST /api/employee-roles
+      Auth: Bearer Token (admin)
+      Body:
+      {
+        "name": "STAFF",
+        "description": "Nhân viên chính thức"
+      }
+
+11.4. PUT /api/employee-roles/{id}
+      Auth: Bearer Token (admin)
+      Params: id = employee_role_id (UUID)
+      Body:
+      {
+        "name": "PROBATION",
+        "description": "Nhân viên thử việc - giai đoạn 2"
+      }
+
+11.5. DELETE /api/employee-roles/{id}
+      Auth: Bearer Token (admin)
+      Params: id = employee_role_id (UUID)
+
+================================================================================
+                          12. NHÂN VIÊN (EMPLOYEES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem/tạo/sửa/xoá: admin hoặc manager
+- Tạo nhân viên: gán user_id, cinema_id, employee_role_id
+- Khi tạo: nếu user đang có role "customer" → tự động chuyển thành "employee"
+- Khi xoá: nếu user không còn bản ghi employee nào khác → chuyển role về "customer"
+- Xoá nhân viên sẽ xoá luôn bảng lương (salary)
+- Code tự generate format: EMP-XXXXXX
+- Manager chỉ thao tác nhân viên thuộc rạp mình quản lý
+- Không thể chuyển nhân viên sang rạp mà manager không quản lý
+- Soft delete
+
+--- API ---
+
+12.1. GET /api/employees
+      Auth: Bearer Token (admin, manager)
+      Query: ?search=Minh&sort_by=hire_date&sort_order=desc&per_page=10
+
+12.2. GET /api/employees/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_id (UUID)
+
+12.3. POST /api/employees
+      Auth: Bearer Token (admin, manager)
+      Body:
+      {
+        "employee_role_id": "uuid-of-employee-role",
+        "user_id": "uuid-of-user",
+        "cinema_id": "uuid-of-cinema",
+        "name": "Nguyễn Văn Nhân Viên",
+        "hire_date": "2026-03-01",
+        "end_date": null,
+        "status": "IN_ACTIVE"
+      }
+
+12.4. PUT /api/employees/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_id (UUID)
+      Body:
+      {
+        "employee_role_id": "uuid-of-staff-role",
+        "cinema_id": "uuid-of-another-cinema",
+        "name": "Tên mới",
+        "status": "UN_ACTIVE",
+        "end_date": "2026-06-30"
+      }
+
+12.5. DELETE /api/employees/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_id (UUID)
+
+================================================================================
+                          13. BẢNG LƯƠNG (EMPLOYEE SALARIES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem/tạo/sửa/xoá: admin hoặc manager
+- Mỗi nhân viên chỉ có 1 bảng lương (unique employee_id)
+- total_earn = net_salary + bonus (tự tính khi tạo/sửa)
+- payment_status: IS_PENDING, IN_ACTIVE (đã trả), UN_ACTIVE
+- Manager chỉ thao tác bảng lương nhân viên thuộc rạp mình
+
+--- API ---
+
+13.1. GET /api/employee-salaries
+      Auth: Bearer Token (admin, manager)
+      Query: ?search=Vietcombank&sort_by=net_salary&sort_order=desc&per_page=10
+
+13.2. GET /api/employee-salaries/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_salary_id (UUID)
+
+13.3. POST /api/employee-salaries
+      Auth: Bearer Token (admin, manager)
+      Body:
+      {
+        "employee_id": "uuid-of-employee",
+        "bank_number": "19036542891",
+        "bank_name": "Techcombank",
+        "net_salary": 15000000,
+        "bonus": 2000000,
+        "payment_status": "IS_PENDING"
+      }
+
+13.4. PUT /api/employee-salaries/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_salary_id (UUID)
+      Body:
+      {
+        "net_salary": 18000000,
+        "bonus": 3000000,
+        "payment_status": "IN_ACTIVE"
+      }
+
+13.5. DELETE /api/employee-salaries/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = employee_salary_id (UUID)
+
+================================================================================
+                          14. DOANH THU RẠP (CINEMA SALES)
+================================================================================
+
+LOGIC NGHIỆP VỤ:
+- Xem/tạo/sửa/xoá: admin hoặc manager
+- Mỗi rạp mỗi ngày chỉ có 1 bản ghi doanh thu (unique cinema_id + sale_date)
+- Manager chỉ thao tác doanh thu rạp mình quản lý
+- gross_amount: tổng doanh thu (VND)
+
+--- API ---
+
+14.1. GET /api/cinema-sales
+      Auth: Bearer Token (admin, manager)
+      Query: ?sort_by=sale_date&sort_order=desc&per_page=30
+             &date_from=2026-02-01&date_to=2026-03-13&date_column=sale_date
+
+14.2. GET /api/cinema-sales/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = cinema_sale_id (UUID)
+
+14.3. POST /api/cinema-sales
+      Auth: Bearer Token (admin, manager)
+      Body:
+      {
+        "cinema_id": "uuid-of-cinema",
+        "sale_date": "2026-03-13",
+        "gross_amount": 150000000
+      }
+
+14.4. PUT /api/cinema-sales/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = cinema_sale_id (UUID)
+      Body:
+      {
+        "gross_amount": 175000000
+      }
+
+14.5. DELETE /api/cinema-sales/{id}
+      Auth: Bearer Token (admin, manager)
+      Params: id = cinema_sale_id (UUID)
+
+================================================================================
+                     POSTMAN COLLECTION - JSON IMPORT
+================================================================================
+
+Hướng dẫn import vào Postman:
+  1. Mở Postman → Import → Raw Text
+  2. Copy toàn bộ JSON bên dưới và paste vào
+  3. Click Import
+  4. Vào tab Variables trong collection, kiểm tra base_url = http://localhost/api
+  5. Chạy request "Login (Admin)" trước để lấy token
+  6. Token sẽ tự động set vào biến {{token}} cho các request khác
+
+Lưu ý:
+  - Các ID (UUID) trong request là placeholder, cần thay bằng ID thực từ database
+  - Chạy "Login" trước để lấy token, sau đó chạy các request khác
+
+--- POSTMAN COLLECTION JSON ---
+
+{
+  "info": {
+    "name": "Ticket Booking Services API",
+    "description": "API đặt vé xem phim - Đầy đủ tất cả endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "item": [
+    {
+      "name": "01. Auth",
+      "item": [
+        {
+          "name": "Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.access_token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.access_token);",
+                  "    console.log('Token saved: ' + jsonData.data.access_token.substring(0, 20) + '...');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@ticketbooking.com\",\n  \"password\": \"Password@123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login (Manager)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.access_token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"manager1@ticketbooking.com\",\n  \"password\": \"Password@123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login (Employee)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.access_token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"employee1@ticketbooking.com\",\n  \"password\": \"Password@123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Login (Customer)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if (jsonData.data && jsonData.data.access_token) {",
+                  "    pm.collectionVariables.set('token', jsonData.data.access_token);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer1@gmail.com\",\n  \"password\": \"Password@123\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/login", "host": ["{{base_url}}"], "path": ["login"] }
+          }
+        },
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Nguyễn Văn Test\",\n  \"email\": \"testuser_new@gmail.com\",\n  \"password\": \"Password@123\",\n  \"password_confirmation\": \"Password@123\",\n  \"user_name\": \"test_user_new\",\n  \"phone\": \"0901234999\",\n  \"dob\": \"2000-05-15\",\n  \"address\": \"Quận 1, TP.HCM\",\n  \"device_name\": \"Postman\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/register", "host": ["{{base_url}}"], "path": ["register"] }
+          }
+        },
+        {
+          "name": "Forgot Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"customer1@gmail.com\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/forgot-password", "host": ["{{base_url}}"], "path": ["forgot-password"] }
+          }
+        },
+        {
+          "name": "Reset Password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"reset-token-from-email\",\n  \"email\": \"customer1@gmail.com\",\n  \"password\": \"NewPassword@123\",\n  \"password_confirmation\": \"NewPassword@123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/reset-password", "host": ["{{base_url}}"], "path": ["reset-password"] }
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/auth/logout", "host": ["{{base_url}}"], "path": ["auth", "logout"] }
+          }
+        },
+        {
+          "name": "Logout All Devices",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/auth/logout-all-devices", "host": ["{{base_url}}"], "path": ["auth", "logout-all-devices"] }
+          }
+        },
+        {
+          "name": "Logout Specific Device",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/auth/logout/:tokenId/device", "host": ["{{base_url}}"], "path": ["auth", "logout", ":tokenId", "device"], "variable": [{ "key": "tokenId", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Get Devices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": { "raw": "{{base_url}}/auth/devices", "host": ["{{base_url}}"], "path": ["auth", "devices"] }
+          }
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"Password@123\",\n  \"password\": \"NewPassword@123\",\n  \"password_confirmation\": \"NewPassword@123\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/auth/change-password", "host": ["{{base_url}}"], "path": ["auth", "change-password"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02. Users",
+      "item": [
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users/profile", "host": ["{{base_url}}"], "path": ["users", "profile"] }
+          }
+        },
+        {
+          "name": "Update Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Tên Mới\",\n  \"phone\": \"0909123456\",\n  \"dob\": \"1995-06-15\",\n  \"address\": \"Quận 7, TP.HCM\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/users/profile", "host": ["{{base_url}}"], "path": ["users", "profile"] }
+          }
+        },
+        {
+          "name": "List Users (Admin)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users?search=&sort_by=created_at&sort_order=desc&per_page=15&page=1", "host": ["{{base_url}}"], "path": ["users"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "created_at" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "15" }, { "key": "page", "value": "1" }] }
+          }
+        },
+        {
+          "name": "Update User (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Updated Name\",\n  \"status\": \"IN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/users/:id", "host": ["{{base_url}}"], "path": ["users", ":id"], "variable": [{ "key": "id", "value": "user-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete User (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/users/:id", "host": ["{{base_url}}"], "path": ["users", ":id"], "variable": [{ "key": "id", "value": "user-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03. Categories",
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/categories?search=&sort_by=name&sort_order=asc&per_page=20", "host": ["{{base_url}}"], "path": ["categories"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "name" }, { "key": "sort_order", "value": "asc" }, { "key": "per_page", "value": "20" }] }
+          }
+        },
+        {
+          "name": "Get Category",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/categories/:id", "host": ["{{base_url}}"], "path": ["categories", ":id"], "variable": [{ "key": "id", "value": "category-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Category (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Viễn Tây\",\n  \"description\": \"Phim cao bồi miền viễn tây\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/categories", "host": ["{{base_url}}"], "path": ["categories"] }
+          }
+        },
+        {
+          "name": "Update Category (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Viễn Tây Updated\",\n  \"description\": \"Mô tả mới\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/categories/:id", "host": ["{{base_url}}"], "path": ["categories", ":id"], "variable": [{ "key": "id", "value": "category-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Category (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/categories/:id", "host": ["{{base_url}}"], "path": ["categories", ":id"], "variable": [{ "key": "id", "value": "category-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04. Movies",
+      "item": [
+        {
+          "name": "List Movies",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/movies?search=&sort_by=release_date&sort_order=desc&per_page=10", "host": ["{{base_url}}"], "path": ["movies"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "release_date" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Movie",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/movies/:id", "host": ["{{base_url}}"], "path": ["movies", ":id"], "variable": [{ "key": "id", "value": "movie-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Movie (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Spider-Man: No Way Home 2\",\n  \"name\": \"Spider Man No Way Home 2\",\n  \"description\": \"Phần tiếp theo của loạt phim Spider-Man\",\n  \"thumb_url\": \"https://example.com/spiderman.jpg\",\n  \"trailer_url\": \"https://youtube.com/watch?v=abc123\",\n  \"gallery\": [\"https://example.com/img1.jpg\", \"https://example.com/img2.jpg\"],\n  \"duration\": 150,\n  \"language\": \"Tiếng Anh - Phụ đề Việt\",\n  \"age\": 13,\n  \"rating\": 8.5,\n  \"release_date\": \"2026-04-01\",\n  \"end_date\": \"2026-06-01\",\n  \"status\": \"IS_PENDING\",\n  \"genre_id\": \"category-uuid-here\",\n  \"category_ids\": [\"category-uuid-1\", \"category-uuid-2\"]\n}"
+            },
+            "url": { "raw": "{{base_url}}/movies", "host": ["{{base_url}}"], "path": ["movies"] }
+          }
+        },
+        {
+          "name": "Update Movie (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Spider-Man Updated\",\n  \"rating\": 9.0,\n  \"status\": \"IN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/movies/:id", "host": ["{{base_url}}"], "path": ["movies", ":id"], "variable": [{ "key": "id", "value": "movie-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Movie (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/movies/:id", "host": ["{{base_url}}"], "path": ["movies", ":id"], "variable": [{ "key": "id", "value": "movie-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05. Combos",
+      "item": [
+        {
+          "name": "List Combos",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/combos?search=&sort_by=price&sort_order=asc&per_page=20", "host": ["{{base_url}}"], "path": ["combos"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "price" }, { "key": "sort_order", "value": "asc" }, { "key": "per_page", "value": "20" }] }
+          }
+        },
+        {
+          "name": "Get Combo",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/combos/:id", "host": ["{{base_url}}"], "path": ["combos", ":id"], "variable": [{ "key": "id", "value": "combo-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Combo (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Combo Mega\",\n  \"price\": 179000,\n  \"stock\": 200\n}"
+            },
+            "url": { "raw": "{{base_url}}/combos", "host": ["{{base_url}}"], "path": ["combos"] }
+          }
+        },
+        {
+          "name": "Update Combo (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Combo Mega Plus\",\n  \"price\": 199000,\n  \"stock\": 150\n}"
+            },
+            "url": { "raw": "{{base_url}}/combos/:id", "host": ["{{base_url}}"], "path": ["combos", ":id"], "variable": [{ "key": "id", "value": "combo-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Combo (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/combos/:id", "host": ["{{base_url}}"], "path": ["combos", ":id"], "variable": [{ "key": "id", "value": "combo-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06. Cinemas",
+      "item": [
+        {
+          "name": "List Cinemas",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinemas?search=&sort_by=name&sort_order=asc&per_page=10", "host": ["{{base_url}}"], "path": ["cinemas"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "name" }, { "key": "sort_order", "value": "asc" }, { "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Cinema",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinemas/:id", "host": ["{{base_url}}"], "path": ["cinemas", ":id"], "variable": [{ "key": "id", "value": "cinema-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Cinema (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CGV Sala\",\n  \"location\": \"Tầng 3, Sala, Quận 2, TP.HCM\",\n  \"active\": \"IN_ACTIVE\",\n  \"manager_id\": \"manager-user-uuid-here\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/cinemas", "host": ["{{base_url}}"], "path": ["cinemas"] }
+          }
+        },
+        {
+          "name": "Update Cinema (Admin/Manager)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"CGV Sala Updated\",\n  \"location\": \"Địa chỉ mới\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/cinemas/:id", "host": ["{{base_url}}"], "path": ["cinemas", ":id"], "variable": [{ "key": "id", "value": "cinema-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Cinema (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinemas/:id", "host": ["{{base_url}}"], "path": ["cinemas", ":id"], "variable": [{ "key": "id", "value": "cinema-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07. Showtimes",
+      "item": [
+        {
+          "name": "List Showtimes",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/showtimes?cinema_id=&movie_id=&screen_type=&sort_by=starts_at&sort_order=asc&per_page=20&date_from=2026-03-13&date_column=starts_at", "host": ["{{base_url}}"], "path": ["showtimes"], "query": [{ "key": "cinema_id", "value": "" }, { "key": "movie_id", "value": "" }, { "key": "screen_type", "value": "" }, { "key": "sort_by", "value": "starts_at" }, { "key": "sort_order", "value": "asc" }, { "key": "per_page", "value": "20" }, { "key": "date_from", "value": "2026-03-13" }, { "key": "date_column", "value": "starts_at" }] }
+          }
+        },
+        {
+          "name": "Get Showtime",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/showtimes/:id", "host": ["{{base_url}}"], "path": ["showtimes", ":id"], "variable": [{ "key": "id", "value": "showtime-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Showtime (Admin/Manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cinema_id\": \"cinema-uuid-here\",\n  \"movie_id\": \"movie-uuid-here\",\n  \"starts_at\": \"2026-03-20 19:00:00\",\n  \"ends_at\": \"2026-03-20 21:30:00\",\n  \"screen_type\": \"2D\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/showtimes", "host": ["{{base_url}}"], "path": ["showtimes"] }
+          }
+        },
+        {
+          "name": "Update Showtime (Admin/Manager)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"starts_at\": \"2026-03-20 20:00:00\",\n  \"ends_at\": \"2026-03-20 22:30:00\",\n  \"screen_type\": \"3D\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/showtimes/:id", "host": ["{{base_url}}"], "path": ["showtimes", ":id"], "variable": [{ "key": "id", "value": "showtime-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Showtime (Admin/Manager)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/showtimes/:id", "host": ["{{base_url}}"], "path": ["showtimes", ":id"], "variable": [{ "key": "id", "value": "showtime-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "08. Seats",
+      "item": [
+        {
+          "name": "List Seats",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/seats?showtime_id=&seat_type=&active=&sort_by=seat_code&sort_order=asc&per_page=100", "host": ["{{base_url}}"], "path": ["seats"], "query": [{ "key": "showtime_id", "value": "" }, { "key": "seat_type", "value": "" }, { "key": "active", "value": "" }, { "key": "sort_by", "value": "seat_code" }, { "key": "sort_order", "value": "asc" }, { "key": "per_page", "value": "100" }] }
+          }
+        },
+        {
+          "name": "Get Seat",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/seats/:id", "host": ["{{base_url}}"], "path": ["seats", ":id"], "variable": [{ "key": "id", "value": "seat-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Get Seats by Showtime",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/seats/showtime/:showtimeId?seat_type=&active=IN_ACTIVE&sort_by=seat_code&per_page=100", "host": ["{{base_url}}"], "path": ["seats", "showtime", ":showtimeId"], "query": [{ "key": "seat_type", "value": "" }, { "key": "active", "value": "IN_ACTIVE" }, { "key": "sort_by", "value": "seat_code" }, { "key": "per_page", "value": "100" }], "variable": [{ "key": "showtimeId", "value": "showtime-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Seat (Admin/Manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showtime_id\": \"showtime-uuid-here\",\n  \"seat_code\": \"H1\",\n  \"seat_type\": \"VIP\",\n  \"price\": 120000,\n  \"active\": \"IN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/seats", "host": ["{{base_url}}"], "path": ["seats"] }
+          }
+        },
+        {
+          "name": "Create Seats Bulk (Admin/Manager)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showtime_id\": \"showtime-uuid-here\",\n  \"seats\": [\n    {\"seat_code\": \"H1\", \"seat_type\": \"NORMAL\", \"price\": 75000},\n    {\"seat_code\": \"H2\", \"seat_type\": \"NORMAL\", \"price\": 75000},\n    {\"seat_code\": \"H3\", \"seat_type\": \"VIP\", \"price\": 120000},\n    {\"seat_code\": \"H4\", \"seat_type\": \"VIP\", \"price\": 120000},\n    {\"seat_code\": \"H5\", \"seat_type\": \"COUPLE\", \"price\": 200000}\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/seats/bulk", "host": ["{{base_url}}"], "path": ["seats", "bulk"] }
+          }
+        },
+        {
+          "name": "Update Seat (Admin/Manager)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"price\": 150000,\n  \"active\": \"UN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/seats/:id", "host": ["{{base_url}}"], "path": ["seats", ":id"], "variable": [{ "key": "id", "value": "seat-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Seat (Admin/Manager)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/seats/:id", "host": ["{{base_url}}"], "path": ["seats", ":id"], "variable": [{ "key": "id", "value": "seat-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "09. Tickets",
+      "item": [
+        {
+          "name": "List Tickets (Admin/Manager)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tickets?status=&movie_id=&showtime_id=&search=&sort_by=created_at&sort_order=desc&per_page=20", "host": ["{{base_url}}"], "path": ["tickets"], "query": [{ "key": "status", "value": "" }, { "key": "movie_id", "value": "" }, { "key": "showtime_id", "value": "" }, { "key": "search", "value": "" }, { "key": "sort_by", "value": "created_at" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "20" }] }
+          }
+        },
+        {
+          "name": "Get Ticket (Admin/Manager)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tickets/:id", "host": ["{{base_url}}"], "path": ["tickets", ":id"], "variable": [{ "key": "id", "value": "ticket-uuid-here" }] }
+          }
+        },
+        {
+          "name": "My Tickets",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tickets/my-tickets?status=&sort_by=created_at&sort_order=desc&per_page=10", "host": ["{{base_url}}"], "path": ["tickets", "my-tickets"], "query": [{ "key": "status", "value": "" }, { "key": "sort_by", "value": "created_at" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Book Ticket (No Combo)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showtime_id\": \"showtime-uuid-here\",\n  \"seat_id\": \"seat-uuid-here\",\n  \"payment_method\": \"TRANSFER\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/tickets/book", "host": ["{{base_url}}"], "path": ["tickets", "book"] }
+          }
+        },
+        {
+          "name": "Book Ticket (With Combos)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"showtime_id\": \"showtime-uuid-here\",\n  \"seat_id\": \"seat-uuid-here\",\n  \"payment_method\": \"CARD\",\n  \"combos\": [\n    {\"combo_id\": \"combo-uuid-1\", \"qty\": 1},\n    {\"combo_id\": \"combo-uuid-2\", \"qty\": 2}\n  ]\n}"
+            },
+            "url": { "raw": "{{base_url}}/tickets/book", "host": ["{{base_url}}"], "path": ["tickets", "book"] }
+          }
+        },
+        {
+          "name": "Confirm Payment (Admin/Manager/Employee)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tickets/:id/confirm-payment", "host": ["{{base_url}}"], "path": ["tickets", ":id", "confirm-payment"], "variable": [{ "key": "id", "value": "ticket-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Cancel Ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/tickets/:id/cancel", "host": ["{{base_url}}"], "path": ["tickets", ":id", "cancel"], "variable": [{ "key": "id", "value": "ticket-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Payments",
+      "item": [
+        {
+          "name": "List Payments (Admin/Manager)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/payments?method=&status=&sort_by=created_at&sort_order=desc&per_page=20", "host": ["{{base_url}}"], "path": ["payments"], "query": [{ "key": "method", "value": "" }, { "key": "status", "value": "" }, { "key": "sort_by", "value": "created_at" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "20" }] }
+          }
+        },
+        {
+          "name": "Get Payment (Admin/Manager)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/payments/:id", "host": ["{{base_url}}"], "path": ["payments", ":id"], "variable": [{ "key": "id", "value": "payment-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Employee Roles",
+      "item": [
+        {
+          "name": "List Employee Roles",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-roles?per_page=10", "host": ["{{base_url}}"], "path": ["employee-roles"], "query": [{ "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Employee Role",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-roles/:id", "host": ["{{base_url}}"], "path": ["employee-roles", ":id"], "variable": [{ "key": "id", "value": "role-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Employee Role (Admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"STAFF\",\n  \"description\": \"Nhân viên chính thức\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employee-roles", "host": ["{{base_url}}"], "path": ["employee-roles"] }
+          }
+        },
+        {
+          "name": "Update Employee Role (Admin)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Nhân viên chính thức - cập nhật\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employee-roles/:id", "host": ["{{base_url}}"], "path": ["employee-roles", ":id"], "variable": [{ "key": "id", "value": "role-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Employee Role (Admin)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-roles/:id", "host": ["{{base_url}}"], "path": ["employee-roles", ":id"], "variable": [{ "key": "id", "value": "role-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "12. Employees",
+      "item": [
+        {
+          "name": "List Employees",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employees?search=&sort_by=hire_date&sort_order=desc&per_page=10", "host": ["{{base_url}}"], "path": ["employees"], "query": [{ "key": "search", "value": "" }, { "key": "sort_by", "value": "hire_date" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Employee",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employees/:id", "host": ["{{base_url}}"], "path": ["employees", ":id"], "variable": [{ "key": "id", "value": "employee-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_role_id\": \"employee-role-uuid-here\",\n  \"user_id\": \"user-uuid-here\",\n  \"cinema_id\": \"cinema-uuid-here\",\n  \"name\": \"Nguyễn Văn Nhân Viên\",\n  \"hire_date\": \"2026-03-01\",\n  \"status\": \"IN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employees", "host": ["{{base_url}}"], "path": ["employees"] }
+          }
+        },
+        {
+          "name": "Update Employee",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tên mới\",\n  \"status\": \"UN_ACTIVE\",\n  \"end_date\": \"2026-06-30\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employees/:id", "host": ["{{base_url}}"], "path": ["employees", ":id"], "variable": [{ "key": "id", "value": "employee-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Employee",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employees/:id", "host": ["{{base_url}}"], "path": ["employees", ":id"], "variable": [{ "key": "id", "value": "employee-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "13. Employee Salaries",
+      "item": [
+        {
+          "name": "List Salaries",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-salaries?sort_by=net_salary&sort_order=desc&per_page=10", "host": ["{{base_url}}"], "path": ["employee-salaries"], "query": [{ "key": "sort_by", "value": "net_salary" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "10" }] }
+          }
+        },
+        {
+          "name": "Get Salary",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-salaries/:id", "host": ["{{base_url}}"], "path": ["employee-salaries", ":id"], "variable": [{ "key": "id", "value": "salary-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Salary",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employee_id\": \"employee-uuid-here\",\n  \"bank_number\": \"19036542891\",\n  \"bank_name\": \"Techcombank\",\n  \"net_salary\": 15000000,\n  \"bonus\": 2000000,\n  \"payment_status\": \"IS_PENDING\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employee-salaries", "host": ["{{base_url}}"], "path": ["employee-salaries"] }
+          }
+        },
+        {
+          "name": "Update Salary",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"net_salary\": 18000000,\n  \"bonus\": 3000000,\n  \"payment_status\": \"IN_ACTIVE\"\n}"
+            },
+            "url": { "raw": "{{base_url}}/employee-salaries/:id", "host": ["{{base_url}}"], "path": ["employee-salaries", ":id"], "variable": [{ "key": "id", "value": "salary-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Salary",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/employee-salaries/:id", "host": ["{{base_url}}"], "path": ["employee-salaries", ":id"], "variable": [{ "key": "id", "value": "salary-uuid-here" }] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "14. Cinema Sales",
+      "item": [
+        {
+          "name": "List Cinema Sales",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinema-sales?sort_by=sale_date&sort_order=desc&per_page=30&date_from=2026-02-01&date_to=2026-03-13&date_column=sale_date", "host": ["{{base_url}}"], "path": ["cinema-sales"], "query": [{ "key": "sort_by", "value": "sale_date" }, { "key": "sort_order", "value": "desc" }, { "key": "per_page", "value": "30" }, { "key": "date_from", "value": "2026-02-01" }, { "key": "date_to", "value": "2026-03-13" }, { "key": "date_column", "value": "sale_date" }] }
+          }
+        },
+        {
+          "name": "Get Cinema Sale",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinema-sales/:id", "host": ["{{base_url}}"], "path": ["cinema-sales", ":id"], "variable": [{ "key": "id", "value": "sale-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Create Cinema Sale",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"cinema_id\": \"cinema-uuid-here\",\n  \"sale_date\": \"2026-03-13\",\n  \"gross_amount\": 150000000\n}"
+            },
+            "url": { "raw": "{{base_url}}/cinema-sales", "host": ["{{base_url}}"], "path": ["cinema-sales"] }
+          }
+        },
+        {
+          "name": "Update Cinema Sale",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gross_amount\": 175000000\n}"
+            },
+            "url": { "raw": "{{base_url}}/cinema-sales/:id", "host": ["{{base_url}}"], "path": ["cinema-sales", ":id"], "variable": [{ "key": "id", "value": "sale-uuid-here" }] }
+          }
+        },
+        {
+          "name": "Delete Cinema Sale",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": { "raw": "{{base_url}}/cinema-sales/:id", "host": ["{{base_url}}"], "path": ["cinema-sales", ":id"], "variable": [{ "key": "id", "value": "sale-uuid-here" }] }
+          }
+        }
+      ]
+    }
+  ]
+}
+
+================================================================================
+                          TỔNG KẾT API ENDPOINTS
+================================================================================
+
+Tổng cộng: 55 endpoints
+
+Module              | GET | POST | PUT | DELETE | Tổng
+--------------------|-----|------|-----|--------|-----
+Auth                |  1  |   8  |  0  |   0    |  9
+Users               |  2  |   0  |  2  |   1    |  5
+Categories          |  2  |   1  |  1  |   1    |  5
+Movies              |  2  |   1  |  1  |   1    |  5
+Combos              |  2  |   1  |  1  |   1    |  5
+Cinemas             |  2  |   1  |  1  |   1    |  5
+Showtimes           |  2  |   1  |  1  |   1    |  5
+Seats               |  3  |   2  |  1  |   1    |  7
+Tickets             |  3  |   3  |  0  |   0    |  6
+Payments            |  2  |   0  |  0  |   0    |  2
+Employee Roles      |  2  |   1  |  1  |   1    |  5
+Employees           |  2  |   1  |  1  |   1    |  5
+Employee Salaries   |  2  |   1  |  1  |   1    |  5
+Cinema Sales        |  2  |   1  |  1  |   1    |  5
+--------------------|-----|------|-----|--------|-----
+TỔNG                | 29  |  22  | 12  |  10    | 73*
+
+* Bao gồm cả các Login riêng cho từng role trong Postman collection
+
+Trạng thái hệ thống (status values):
+  - User/Cinema/Employee: IN_ACTIVE | UN_ACTIVE
+  - Movie: IN_ACTIVE | IS_PENDING | UN_ACTIVE
+  - Ticket/Payment: IS_PENDING | IN_ACTIVE | UN_ACTIVE
+  - Seat: IN_ACTIVE | HOLD | SOLD | UN_ACTIVE
+  - Employee Salary: IS_PENDING | IN_ACTIVE | UN_ACTIVE
+  - Employee Role name: STAFF | PROBATION
+  - Payment method: TRANSFER | CARD | CASH
+  - Screen type: 2D | 3D
+  - Seat type: NORMAL | VIP | COUPLE
+
+================================================================================
+                           KẾT THÚC TÀI LIỆU
+================================================================================
