@@ -89,12 +89,13 @@ class TestDataSeeder extends Seeder
         ];
 
         $makeFullName = function () use ($vnFirstNames, $vnLastNames, $vnMiddleNames) {
-            return $vnLastNames[array_rand($vnLastNames)] . ' ' . $vnMiddleNames[array_rand($vnMiddleNames)] . ' ' . $vnFirstNames[array_rand($vnFirstNames)];
+            return $vnLastNames[array_rand($vnLastNames)].' '.$vnMiddleNames[array_rand($vnMiddleNames)].' '.$vnFirstNames[array_rand($vnFirstNames)];
         };
         $makeAddress = function () use ($cities, $districts) {
             $city = $cities[array_rand($cities)];
             $districtList = $districts[$city] ?? ['Trung tâm'];
-            return $districtList[array_rand($districtList)] . ', ' . $city;
+
+            return $districtList[array_rand($districtList)].', '.$city;
         };
 
         // --- Managers (8) ---
@@ -106,7 +107,7 @@ class TestDataSeeder extends Seeder
                 'full_name' => $makeFullName(),
                 'email' => "manager{$i}@ticketbooking.com",
                 'password' => $password,
-                'phone' => '091' . str_pad($i, 7, '0', STR_PAD_LEFT),
+                'phone' => '091'.str_pad($i, 7, '0', STR_PAD_LEFT),
                 'dob' => Carbon::create(rand(1980, 1995), rand(1, 12), rand(1, 28)),
                 'address' => $makeAddress(),
                 'status' => 'IN_ACTIVE',
@@ -122,7 +123,7 @@ class TestDataSeeder extends Seeder
                 'full_name' => $makeFullName(),
                 'email' => "employee{$i}@ticketbooking.com",
                 'password' => $password,
-                'phone' => '092' . str_pad($i, 7, '0', STR_PAD_LEFT),
+                'phone' => '092'.str_pad($i, 7, '0', STR_PAD_LEFT),
                 'dob' => Carbon::create(rand(1990, 2004), rand(1, 12), rand(1, 28)),
                 'address' => $makeAddress(),
                 'status' => 'IN_ACTIVE',
@@ -138,7 +139,7 @@ class TestDataSeeder extends Seeder
                 'full_name' => $makeFullName(),
                 'email' => "customer{$i}@gmail.com",
                 'password' => $password,
-                'phone' => '093' . str_pad($i, 7, '0', STR_PAD_LEFT),
+                'phone' => '093'.str_pad($i, 7, '0', STR_PAD_LEFT),
                 'dob' => Carbon::create(rand(1985, 2006), rand(1, 12), rand(1, 28)),
                 'address' => $makeAddress(),
                 'status' => $i <= 47 ? 'IN_ACTIVE' : 'UN_ACTIVE',
@@ -203,11 +204,11 @@ class TestDataSeeder extends Seeder
                 'name' => $m['name'],
                 'slug' => Str::slug($m['name']),
                 'description' => "Bộ phim {$m['title']} mang đến trải nghiệm điện ảnh đầy ấn tượng cho khán giả năm 2026.",
-                'thumb_url' => 'https://placehold.co/300x450?text=' . urlencode($m['name']),
-                'trailer_url' => 'https://www.youtube.com/watch?v=example_' . Str::slug($m['name']),
+                'thumb_url' => 'https://placehold.co/300x450?text='.urlencode($m['name']),
+                'trailer_url' => 'https://www.youtube.com/watch?v=example_'.Str::slug($m['name']),
                 'gallery' => [
-                    'https://placehold.co/800x400?text=' . urlencode($m['name'] . ' 1'),
-                    'https://placehold.co/800x400?text=' . urlencode($m['name'] . ' 2'),
+                    'https://placehold.co/800x400?text='.urlencode($m['name'].' 1'),
+                    'https://placehold.co/800x400?text='.urlencode($m['name'].' 2'),
                 ],
                 'duration' => $m['duration'],
                 'language' => $m['lang'],
@@ -352,7 +353,7 @@ class TestDataSeeder extends Seeder
                     $price = $showtime->screen_type === '3D' ? $config['price3D'] : $config['price2D'];
                     $showtimeSeats[] = Seat::create([
                         'showtime_id' => $showtime->showtime_id,
-                        'seat_code' => $row . $num,
+                        'seat_code' => $row.$num,
                         'seat_type' => $config['type'],
                         'price' => $price,
                         'active' => 'IN_ACTIVE',
