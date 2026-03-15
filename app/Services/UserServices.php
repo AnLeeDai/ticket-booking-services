@@ -70,11 +70,28 @@ class UserServices extends Services
                 return $this->errorResponse(message: 'Chưa đăng nhập', code: 401);
             }
 
-            $data = array_filter($request->validated(), fn ($v) => ! is_null($v));
+            $data = $request->validated();
+
+            $clearMap = [
+                'clear_phone' => 'phone',
+                'clear_dob' => 'dob',
+                'clear_address' => 'address',
+                'clear_avatar_url' => 'avatar_url',
+            ];
+
+            foreach ($clearMap as $clearKey => $field) {
+                if (! empty($data[$clearKey])) {
+                    $data[$field] = null;
+                }
+            }
+
+            unset($data['clear_phone'], $data['clear_dob'], $data['clear_address'], $data['clear_avatar_url']);
 
             $user->update($data);
 
-            return $this->successResponse(data: $user->fresh(), message: 'Cập nhật thông tin cá nhân thành công');
+            $freshUser = $user->fresh();
+
+            return $this->successResponse(data: $freshUser, message: 'Cập nhật thông tin cá nhân thành công');
         });
     }
 

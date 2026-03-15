@@ -1,0 +1,59 @@
+@import "tailwindcss";
+
+:root {
+    --app-bg: #f4f6fb;
+    --surface: #ffffff;
+    --surface-muted: #f8fafc;
+    --line: #e2e8f0;
+    --text: #0f172a;
+    --text-muted: #475569;
+    --brand: #0f766e;
+    --brand-soft: #ccfbf1;
+}
+
+@layer base {
+    body {
+        @apply min-h-screen bg-[var(--app-bg)] text-[var(--text)] antialiased;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        @apply tracking-tight;
+    }
+}
+
+@layer components {
+    .app-shell {
+        @apply min-h-screen;
+    }
+
+    .panel {
+        @apply rounded-xl border border-[var(--line)] bg-[var(--surface)] shadow-sm;
+    }
+
+    .btn {
+        @apply inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium transition;
+    }
+
+    .btn-primary {
+        @apply inline-flex items-center justify-center rounded-lg bg-[var(--brand)] px-4 py-2 text-sm font-medium text-white transition hover:brightness-95;
+    }
+
+    .btn-secondary {
+        @apply inline-flex items-center justify-center rounded-lg border border-[var(--line)] bg-white px-4 py-2 text-sm font-medium text-[var(--text)] transition hover:bg-slate-50;
+    }
+
+    .field {
+        @apply w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm outline-none ring-[var(--brand)]/30 transition focus:ring-4;
+    }
+
+    .label {
+        @apply mb-1 block text-sm font-medium text-[var(--text)];
+    }
+
+    .caption {
+        @apply text-xs text-[var(--text-muted)];
+    }
+}
