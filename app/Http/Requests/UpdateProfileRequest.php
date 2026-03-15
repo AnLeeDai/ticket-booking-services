@@ -22,6 +22,10 @@ class UpdateProfileRequest extends FormRequest
             'dob' => 'sometimes|nullable|date',
             'address' => 'sometimes|nullable|string|max:255',
             'avatar_url' => 'sometimes|nullable|url|max:500',
+            'clear_phone' => 'sometimes|boolean',
+            'clear_dob' => 'sometimes|boolean',
+            'clear_address' => 'sometimes|boolean',
+            'clear_avatar_url' => 'sometimes|boolean',
         ];
     }
 
